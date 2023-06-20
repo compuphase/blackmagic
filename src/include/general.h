@@ -36,20 +36,21 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
+#include "maths_utils.h"
 #include "platform.h"
 #include "platform_support.h"
 
 extern uint32_t delay_cnt;
 
 enum BMP_DEBUG {
-	BMP_DEBUG_NONE   =  0,
-	BMP_DEBUG_INFO   =  1,
-	BMP_DEBUG_GDB    =  2,
-	BMP_DEBUG_TARGET =  4,
-	BMP_DEBUG_PROBE =  8,
-	BMP_DEBUG_WIRE   = 0x10,
-	BMP_DEBUG_MAX    = 0x20,
-	BMP_DEBUG_STDOUT = 0x8000,
+    BMP_DEBUG_NONE   =  0,
+    BMP_DEBUG_INFO   =  1,
+    BMP_DEBUG_GDB    =  2,
+    BMP_DEBUG_TARGET =  4,
+    BMP_DEBUG_PROBE =  8,
+    BMP_DEBUG_WIRE   = 0x10,
+    BMP_DEBUG_MAX    = 0x20,
+    BMP_DEBUG_STDOUT = 0x8000,
 };
 
 #define FREQ_FIXED 0xffffffff
@@ -80,81 +81,81 @@ extern int cl_debuglevel;
 
 static inline void DEBUG_WARN(const char *format, ...)
 {
-	va_list ap;
+    va_list ap;
     va_start(ap, format);
     vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 
 static inline void DEBUG_INFO(const char *format, ...)
 {
-	if (~cl_debuglevel & BMP_DEBUG_INFO)
-		return;
-	va_list ap;
+    if (~cl_debuglevel & BMP_DEBUG_INFO)
+        return;
+    va_list ap;
     va_start(ap, format);
-	if (cl_debuglevel & BMP_DEBUG_STDOUT)
-		vfprintf(stdout, format, ap);
-	else
-		vfprintf(stderr, format, ap);
+    if (cl_debuglevel & BMP_DEBUG_STDOUT)
+        vfprintf(stdout, format, ap);
+    else
+        vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 
 static inline void DEBUG_GDB(const char *format, ...)
 {
-	if (~cl_debuglevel & BMP_DEBUG_GDB)
-		return;
-	va_list ap;
+    if (~cl_debuglevel & BMP_DEBUG_GDB)
+        return;
+    va_list ap;
     va_start(ap, format);
     vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 
 static inline void DEBUG_GDB_WIRE(const char *format, ...)
 {
-	if ((cl_debuglevel & (BMP_DEBUG_GDB | BMP_DEBUG_WIRE)) !=
-		(BMP_DEBUG_GDB | BMP_DEBUG_WIRE))
-		return;
-	va_list ap;
+    if ((cl_debuglevel & (BMP_DEBUG_GDB | BMP_DEBUG_WIRE)) !=
+        (BMP_DEBUG_GDB | BMP_DEBUG_WIRE))
+        return;
+    va_list ap;
     va_start(ap, format);
     vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 
 static inline void DEBUG_TARGET(const char *format, ...)
 {
-	if (~cl_debuglevel & BMP_DEBUG_TARGET)
-		return;
-	va_list ap;
+    if (~cl_debuglevel & BMP_DEBUG_TARGET)
+        return;
+    va_list ap;
     va_start(ap, format);
     vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 
 static inline void DEBUG_PROBE(const char *format, ...)
 {
-	if (~cl_debuglevel & BMP_DEBUG_PROBE)
-		return;
-	va_list ap;
+    if (~cl_debuglevel & BMP_DEBUG_PROBE)
+        return;
+    va_list ap;
     va_start(ap, format);
     vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 
 static inline void DEBUG_WIRE(const char *format, ...)
 {
-	if (~cl_debuglevel & BMP_DEBUG_WIRE)
-		return;
-	va_list ap;
+    if (~cl_debuglevel & BMP_DEBUG_WIRE)
+        return;
+    va_list ap;
     va_start(ap, format);
     vfprintf(stderr, format, ap);
     va_end(ap);
-	return;
+    return;
 }
 #endif
 

@@ -31,331 +31,340 @@ static int target_flash_done_buffered(struct target_flash *f);
 
 static bool nop_function(void)
 {
-	return true;
+    return true;
 }
 
-static int null_function(void)
+static bool false_function(void)
 {
-	return 0;
+    return false;
 }
 
 target *target_new(void)
 {
-	target *t = (void*)calloc(1, sizeof(*t));
-	if (!t) {			/* calloc failed: heap exhaustion */
-		DEBUG_WARN("calloc: failed in %s\n", __func__);
-		return NULL;
-	}
+    target *t = (void*)calloc(1, sizeof(*t));
+    if (!t) {           /* calloc failed: heap exhaustion */
+        DEBUG_WARN("calloc: failed in %s\n", __func__);
+        return NULL;
+    }
 
-	if (target_list) {
-		target *c = target_list;
-		while (c->next)
-			c = c->next;
-		c->next = t;
-	} else {
-		target_list = t;
-	}
+    if (target_list) {
+        target *c = target_list;
+        while (c->next)
+            c = c->next;
+        c->next = t;
+    } else {
+        target_list = t;
+    }
 
-	t->attach = (void*)nop_function;
-	t->detach = (void*)nop_function;
-	t->mem_read = (void*)nop_function;
-	t->mem_write = (void*)nop_function;
-	t->reg_read = (void*)nop_function;
-	t->reg_write = (void*)nop_function;
-	t->regs_read = (void*)nop_function;
-	t->regs_write = (void*)nop_function;
-	t->reset = (void*)nop_function;
-	t->halt_request = (void*)nop_function;
-	t->halt_poll = (void*)nop_function;
-	t->halt_resume = (void*)nop_function;
-	t->check_error = (void*)null_function;
+    t->attach = (void*)nop_function;
+    t->detach = (void*)nop_function;
+    t->mem_read = (void*)nop_function;
+    t->mem_write = (void*)nop_function;
+    t->reg_read = (void*)nop_function;
+    t->reg_write = (void*)nop_function;
+    t->regs_read = (void*)nop_function;
+    t->regs_write = (void*)nop_function;
+    t->reset = (void*)nop_function;
+    t->halt_request = (void*)nop_function;
+    t->halt_poll = (void*)nop_function;
+    t->halt_resume = (void*)nop_function;
+    t->check_error = (void*)false_function;
 
-	t->target_storage = NULL;
+    t->target_storage = NULL;
 
-	return t;
+    return t;
 }
 
 int target_foreach(void (*cb)(int, target *t, void *context), void *context)
 {
-	int i = 1;
-	target *t = target_list;
-	for (; t; t = t->next, i++)
-		cb(i, t, context);
-	return i;
+    int i = 1;
+    target *t = target_list;
+    for (; t; t = t->next, i++)
+        cb(i, t, context);
+    return i;
+}
+
+
+void target_ram_map_free(target *t) {
+    while (t->ram) {
+        void * next = t->ram->next;
+        free(t->ram);
+        t->ram = next;
+    }
+}
+
+void target_flash_map_free(target *t) {
+    while (t->flash) {
+        void * next = t->flash->next;
+        if (t->flash->buf)
+            free(t->flash->buf);
+        free(t->flash);
+        t->flash = next;
+    }
 }
 
 void target_mem_map_free(target *t)
 {
-	while (t->ram) {
-		void * next = t->ram->next;
-		free(t->ram);
-		t->ram = next;
-	}
-	while (t->flash) {
-		void * next = t->flash->next;
-		if (t->flash->buf)
-			free(t->flash->buf);
-		free(t->flash);
-		t->flash = next;
-	}
+    target_ram_map_free(t);
+    target_flash_map_free(t);
 }
 
 void target_list_free(void)
 {
-	struct target_command_s *tc;
+    struct target_command_s *tc;
 
-	while(target_list) {
-		target *t = target_list->next;
-		if (target_list->tc && target_list->tc->destroy_callback)
-			target_list->tc->destroy_callback(target_list->tc, target_list);
-		if (target_list->priv)
-			target_list->priv_free(target_list->priv);
-		while (target_list->commands) {
-			tc = target_list->commands->next;
-			free(target_list->commands);
-			target_list->commands = tc;
-		}
-		free(target_list->target_storage);
-		target_mem_map_free(target_list);
-		while (target_list->bw_list) {
-			void * next = target_list->bw_list->next;
-			free(target_list->bw_list);
-			target_list->bw_list = next;
-		}
-		free(target_list);
-		target_list = t;
-	}
+    while(target_list) {
+        target *t = target_list->next;
+        if (target_list->tc && target_list->tc->destroy_callback)
+            target_list->tc->destroy_callback(target_list->tc, target_list);
+        if (target_list->priv)
+            target_list->priv_free(target_list->priv);
+        while (target_list->commands) {
+            tc = target_list->commands->next;
+            free(target_list->commands);
+            target_list->commands = tc;
+        }
+        free(target_list->target_storage);
+        target_mem_map_free(target_list);
+        while (target_list->bw_list) {
+            void * next = target_list->bw_list->next;
+            free(target_list->bw_list);
+            target_list->bw_list = next;
+        }
+        free(target_list);
+        target_list = t;
+    }
 }
 
 void target_add_commands(target *t, const struct command_s *cmds, const char *name)
 {
-	struct target_command_s *tc = malloc(sizeof(*tc));
-	if (!tc) {			/* malloc failed: heap exhaustion */
-		DEBUG_WARN("malloc: failed in %s\n", __func__);
-		return;
-	}
+    struct target_command_s *tc = malloc(sizeof(*tc));
+    if (!tc) {          /* malloc failed: heap exhaustion */
+        DEBUG_WARN("malloc: failed in %s\n", __func__);
+        return;
+    }
 
-	if (t->commands) {
-		struct target_command_s *tail;
-		for (tail = t->commands; tail->next; tail = tail->next);
-		tail->next = tc;
-	} else {
-		t->commands = tc;
-	}
-	tc->specific_name = name;
-	tc->cmds = cmds;
-	tc->next = NULL;
+    if (t->commands) {
+        struct target_command_s *tail;
+        for (tail = t->commands; tail->next; tail = tail->next);
+        tail->next = tc;
+    } else {
+        t->commands = tc;
+    }
+    tc->specific_name = name;
+    tc->cmds = cmds;
+    tc->next = NULL;
 }
 
 target *target_attach_n(int n, struct target_controller *tc)
 {
-	target *t;
-	int i;
-	for(t = target_list, i = 1; t; t = t->next, i++)
-		if(i == n)
-			return target_attach(t, tc);
-	return NULL;
+    target *t;
+    int i;
+    for(t = target_list, i = 1; t; t = t->next, i++)
+        if(i == n)
+            return target_attach(t, tc);
+    return NULL;
 }
 
 target *target_attach(target *t, struct target_controller *tc)
 {
-	if (t->tc)
-		t->tc->destroy_callback(t->tc, t);
+    if (t->tc)
+        t->tc->destroy_callback(t->tc, t);
 
-	t->tc = tc;
+    t->tc = tc;
 
-	if (!t->attach(t))
-		return NULL;
+    if (!t->attach(t))
+        return NULL;
 
-	t->attached = true;
-	return t;
+    t->attached = true;
+    return t;
 }
 
 void target_add_ram(target *t, target_addr start, uint32_t len)
 {
-	struct target_ram *ram = malloc(sizeof(*ram));
-	if (!ram) {			/* malloc failed: heap exhaustion */
-		DEBUG_WARN("malloc: failed in %s\n", __func__);
-		return;
-	}
+    struct target_ram *ram = malloc(sizeof(*ram));
+    if (!ram) {         /* malloc failed: heap exhaustion */
+        DEBUG_WARN("malloc: failed in %s\n", __func__);
+        return;
+    }
 
-	ram->start = start;
-	ram->length = len;
-	ram->next = t->ram;
-	t->ram = ram;
+    ram->start = start;
+    ram->length = len;
+    ram->next = t->ram;
+    t->ram = ram;
 }
 
 void target_add_flash(target *t, struct target_flash *f)
 {
-	if (f->buf_size == 0)
-		f->buf_size = MIN(f->blocksize, 0x400);
-	f->t = t;
-	f->next = t->flash;
-	t->flash = f;
+    if (f->buf_size == 0)
+        f->buf_size = MIN(f->blocksize, 0x400);
+    f->t = t;
+    f->next = t->flash;
+    t->flash = f;
 }
 
 static ssize_t map_ram(char *buf, size_t len, struct target_ram *ram)
 {
-	return snprintf(buf, len, "<memory type=\"ram\" start=\"0x%08"PRIx32
-	                          "\" length=\"0x%"PRIx32"\"/>",
-	                          ram->start, (uint32_t)ram->length);
+    return snprintf(buf, len, "<memory type=\"ram\" start=\"0x%08"PRIx32
+                              "\" length=\"0x%"PRIx32"\"/>",
+                              ram->start, (uint32_t)ram->length);
 }
 
 static ssize_t map_flash(char *buf, size_t len, struct target_flash *f)
 {
-	int i = 0;
-	i += snprintf(&buf[i], len - i, "<memory type=\"flash\" start=\"0x%08"PRIx32
-	                                "\" length=\"0x%"PRIx32"\">",
-	                                f->start, (uint32_t)f->length);
-	i += snprintf(&buf[i], len - i, "<property name=\"blocksize\">0x%"PRIx32
-	                            "</property></memory>",
-	                            (uint32_t)f->blocksize);
-	return i;
+    int i = 0;
+    i += snprintf(&buf[i], len - i, "<memory type=\"flash\" start=\"0x%08"PRIx32
+                                    "\" length=\"0x%"PRIx32"\">",
+                                    f->start, (uint32_t)f->length);
+    i += snprintf(&buf[i], len - i, "<property name=\"blocksize\">0x%"PRIx32
+                                "</property></memory>",
+                                (uint32_t)f->blocksize);
+    return i;
 }
 
 bool target_mem_map(target *t, char *tmp, size_t len)
 {
-	size_t i = 0;
-	i = snprintf(&tmp[i], len - i, "<memory-map>");
-	/* Map each defined RAM */
-	for (struct target_ram *r = t->ram; r; r = r->next)
-		i += map_ram(&tmp[i], len - i, r);
-	/* Map each defined Flash */
-	for (struct target_flash *f = t->flash; f; f = f->next)
-		i += map_flash(&tmp[i], len - i, f);
-	i += snprintf(&tmp[i], len - i, "</memory-map>");
+    size_t i = 0;
+    i = snprintf(&tmp[i], len - i, "<memory-map>");
+    /* Map each defined RAM */
+    for (struct target_ram *r = t->ram; r; r = r->next)
+        i += map_ram(&tmp[i], len - i, r);
+    /* Map each defined Flash */
+    for (struct target_flash *f = t->flash; f; f = f->next)
+        i += map_flash(&tmp[i], len - i, f);
+    i += snprintf(&tmp[i], len - i, "</memory-map>");
 
-	if (i > (len -2))
-		return false;
-	return true;
+    if (i > (len -2))
+        return false;
+    return true;
 }
 
 static struct target_flash *flash_for_addr(target *t, uint32_t addr)
 {
-	for (struct target_flash *f = t->flash; f; f = f->next)
-		if ((f->start <= addr) &&
-		    (addr < (f->start + f->length)))
-			return f;
-	return NULL;
+    for (struct target_flash *f = t->flash; f; f = f->next)
+        if ((f->start <= addr) &&
+            (addr < (f->start + f->length)))
+            return f;
+    return NULL;
 }
 
 int target_flash_erase(target *t, target_addr addr, size_t len)
 {
-	int ret = 0;
-	while (len) {
-		struct target_flash *f = flash_for_addr(t, addr);
-		if (!f) {
-			DEBUG_WARN("Erase stopped at 0x%06" PRIx32 "\n", addr);
-			return ret;
-		}
-		size_t tmptarget = MIN(addr + len, f->start + f->length);
-		size_t tmplen = tmptarget - addr;
-		ret |= f->erase(f, addr, tmplen);
-		addr += tmplen;
-		len -= tmplen;
-	}
-	return ret;
+    int ret = 0;
+    while (len) {
+        struct target_flash *f = flash_for_addr(t, addr);
+        if (!f) {
+            DEBUG_WARN("Erase stopped at 0x%06" PRIx32 "\n", addr);
+            return ret;
+        }
+        size_t tmptarget = MIN(addr + len, f->start + f->length);
+        size_t tmplen = tmptarget - addr;
+        ret |= f->erase(f, addr, tmplen);
+        addr += tmplen;
+        len -= tmplen;
+    }
+    return ret;
 }
 
 int target_flash_write(target *t,
                        target_addr dest, const void *src, size_t len)
 {
-	int ret = 0;
-	while (len) {
-		struct target_flash *f = flash_for_addr(t, dest);
-		if (!f)
-			return 1;
-		size_t tmptarget = MIN(dest + len, f->start + f->length);
-		size_t tmplen = tmptarget - dest;
-		ret |= target_flash_write_buffered(f, dest, src, tmplen);
-		dest += tmplen;
-		src += tmplen;
-		len -= tmplen;
-	}
-	return ret;
+    int ret = 0;
+    while (len) {
+        struct target_flash *f = flash_for_addr(t, dest);
+        if (!f)
+            return 1;
+        size_t tmptarget = MIN(dest + len, f->start + f->length);
+        size_t tmplen = tmptarget - dest;
+        ret |= target_flash_write_buffered(f, dest, src, tmplen);
+        dest += tmplen;
+        src += tmplen;
+        len -= tmplen;
+    }
+    return ret;
 }
 
 int target_flash_done(target *t)
 {
-	for (struct target_flash *f = t->flash; f; f = f->next) {
-		int tmp = target_flash_done_buffered(f);
-		if (tmp)
-			return tmp;
-		if (f->done) {
-			tmp = f->done(f);
-			if (tmp)
-				return tmp;
-		}
-	}
-	return 0;
+    for (struct target_flash *f = t->flash; f; f = f->next) {
+        int tmp = target_flash_done_buffered(f);
+        if (tmp)
+            return tmp;
+        if (f->done) {
+            tmp = f->done(f);
+            if (tmp)
+                return tmp;
+        }
+    }
+    return 0;
 }
 
 int target_flash_write_buffered(struct target_flash *f,
                                 target_addr dest, const void *src, size_t len)
 {
-	int ret = 0;
+    int ret = 0;
 
-	if (f->buf == NULL) {
-		/* Allocate flash sector buffer */
-		f->buf = malloc(f->buf_size);
-		if (!f->buf) {			/* malloc failed: heap exhaustion */
-			DEBUG_WARN("malloc: failed in %s\n", __func__);
-			return 1;
-		}
-		f->buf_addr = -1;
-	}
-	while (len) {
-		uint32_t offset = dest % f->buf_size;
-		uint32_t base = dest - offset;
-		if (base != f->buf_addr) {
-			if (f->buf_addr != (uint32_t)-1) {
-				/* Write sector to flash if valid */
-				ret |= f->write(f, f->buf_addr,
-				                f->buf, f->buf_size);
-			}
-			/* Setup buffer for a new sector */
-			f->buf_addr = base;
-			memset(f->buf, f->erased, f->buf_size);
-		}
-		/* Copy chunk into sector buffer */
-		size_t sectlen = MIN(f->buf_size - offset, len);
-		memcpy(f->buf + offset, src, sectlen);
-		dest += sectlen;
-		src += sectlen;
-		len -= sectlen;
-	}
-	return ret;
+    if (f->buf == NULL) {
+        /* Allocate flash sector buffer */
+        f->buf = malloc(f->buf_size);
+        if (!f->buf) {          /* malloc failed: heap exhaustion */
+            DEBUG_WARN("malloc: failed in %s\n", __func__);
+            return 1;
+        }
+        f->buf_addr = -1;
+    }
+    while (len) {
+        uint32_t offset = dest % f->buf_size;
+        uint32_t base = dest - offset;
+        if (base != f->buf_addr) {
+            if (f->buf_addr != (uint32_t)-1) {
+                /* Write sector to flash if valid */
+                ret |= f->write(f, f->buf_addr,
+                                f->buf, f->buf_size);
+            }
+            /* Setup buffer for a new sector */
+            f->buf_addr = base;
+            memset(f->buf, f->erased, f->buf_size);
+        }
+        /* Copy chunk into sector buffer */
+        size_t sectlen = MIN(f->buf_size - offset, len);
+        memcpy(f->buf + offset, src, sectlen);
+        dest += sectlen;
+        src += sectlen;
+        len -= sectlen;
+    }
+    return ret;
 }
 
 int target_flash_done_buffered(struct target_flash *f)
 {
-	int ret = 0;
-	if ((f->buf != NULL) &&(f->buf_addr != (uint32_t)-1)) {
-		/* Write sector to flash if valid */
-		ret = f->write(f, f->buf_addr, f->buf, f->buf_size);
-		f->buf_addr = -1;
-		free(f->buf);
-		f->buf = NULL;
-	}
+    int ret = 0;
+    if ((f->buf != NULL) &&(f->buf_addr != (uint32_t)-1)) {
+        /* Write sector to flash if valid */
+        ret = f->write(f, f->buf_addr, f->buf, f->buf_size);
+        f->buf_addr = -1;
+        free(f->buf);
+        f->buf = NULL;
+    }
 
-	return ret;
+    return ret;
 }
 
 /* Wrapper functions */
 void target_detach(target *t)
 {
-	t->detach(t);
-	t->attached = false;
+    t->detach(t);
+    t->attached = false;
 #if PC_HOSTED == 1
-	platform_buffer_flush();
+    platform_buffer_flush();
 #endif
 }
 
 bool target_check_error(target *t) {
-	if (t)
-		return t->check_error(t);
-	else
-		return false;
+    if (t)
+        return t->check_error(t);
+    else
+        return false;
 }
 
 bool target_attached(target *t) { return t->attached; }
@@ -363,46 +372,46 @@ bool target_attached(target *t) { return t->attached; }
 /* Memory access functions */
 int target_mem_read(target *t, void *dest, target_addr src, size_t len)
 {
-	t->mem_read(t, dest, src, len);
-	return target_check_error(t);
+    t->mem_read(t, dest, src, len);
+    return target_check_error(t);
 }
 
 int target_mem_write(target *t, target_addr dest, const void *src, size_t len)
 {
-	t->mem_write(t, dest, src, len);
-	return target_check_error(t);
+    t->mem_write(t, dest, src, len);
+    return target_check_error(t);
 }
 
 /* Register access functions */
 ssize_t target_reg_read(target *t, int reg, void *data, size_t max)
 {
-	return t->reg_read(t, reg, data, max);
+    return t->reg_read(t, reg, data, max);
 }
 
 ssize_t target_reg_write(target *t, int reg, const void *data, size_t size)
 {
-	return t->reg_write(t, reg, data, size);
+    return t->reg_write(t, reg, data, size);
 }
 
 void target_regs_read(target *t, void *data)
 {
-	if (t->regs_read) {
-		t->regs_read(t, data);
-		return;
-	}
-	for (size_t x = 0, i = 0; x < t->regs_size; ) {
-		x += t->reg_read(t, i++, data + x, t->regs_size - x);
-	}
+    if (t->regs_read) {
+        t->regs_read(t, data);
+        return;
+    }
+    for (size_t x = 0, i = 0; x < t->regs_size; ) {
+        x += t->reg_read(t, i++, data + x, t->regs_size - x);
+    }
 }
 void target_regs_write(target *t, const void *data)
 {
-	if (t->regs_write) {
-		t->regs_write(t, data);
-		return;
-	}
-	for (size_t x = 0, i = 0; x < t->regs_size; ) {
-		x += t->reg_write(t, i++, data + x, t->regs_size - x);
-	}
+    if (t->regs_write) {
+        t->regs_write(t, data);
+        return;
+    }
+    for (size_t x = 0, i = 0; x < t->regs_size; ) {
+        x += t->reg_write(t, i++, data + x, t->regs_size - x);
+    }
 }
 
 /* Halt/resume functions */
@@ -410,285 +419,285 @@ void target_reset(target *t) { t->reset(t); }
 void target_halt_request(target *t) { t->halt_request(t); }
 enum target_halt_reason target_halt_poll(target *t, target_addr *watch)
 {
-	return t->halt_poll(t, watch);
+    return t->halt_poll(t, watch);
 }
 
 void target_halt_resume(target *t, bool step) { t->halt_resume(t, step); }
 
 /* Command line for semihosting get_cmdline */
 void target_set_cmdline(target *t, char *cmdline) {
-	uint32_t len_dst;
-	len_dst = sizeof(t->cmdline)-1;
-	strncpy(t->cmdline, cmdline, len_dst -1);
-	t->cmdline[strlen(t->cmdline)]='\0';
-	DEBUG_INFO("cmdline: >%s<\n", t->cmdline);
-	}
+    uint32_t len_dst;
+    len_dst = sizeof(t->cmdline)-1;
+    strncpy(t->cmdline, cmdline, len_dst -1);
+    t->cmdline[strlen(t->cmdline)]='\0';
+    DEBUG_INFO("cmdline: >%s<\n", t->cmdline);
+    }
 
 /* Set heapinfo for semihosting */
 void target_set_heapinfo(target *t, target_addr heap_base, target_addr heap_limit,
-	target_addr stack_base, target_addr stack_limit) {
-	if (t == NULL) return;
-	t->heapinfo[0] = heap_base;
-	t->heapinfo[1] = heap_limit;
-	t->heapinfo[2] = stack_base;
-	t->heapinfo[3] = stack_limit;
+    target_addr stack_base, target_addr stack_limit) {
+    if (t == NULL) return;
+    t->heapinfo[0] = heap_base;
+    t->heapinfo[1] = heap_limit;
+    t->heapinfo[2] = stack_base;
+    t->heapinfo[3] = stack_limit;
 }
 
 /* Break-/watchpoint functions */
 int target_breakwatch_set(target *t,
                           enum target_breakwatch type, target_addr addr, size_t len)
 {
-	struct breakwatch bw = {
-		.type = type,
-		.addr = addr,
-		.size = len,
-	};
-	int ret = 1;
+    struct breakwatch bw = {
+        .type = type,
+        .addr = addr,
+        .size = len,
+    };
+    int ret = 1;
 
-	if (t->breakwatch_set)
-		ret = t->breakwatch_set(t, &bw);
+    if (t->breakwatch_set)
+        ret = t->breakwatch_set(t, &bw);
 
-	if (ret == 0) {
-		/* Success, make a heap copy */
-		struct breakwatch *bwm = malloc(sizeof bw);
-		if (!bwm) {			/* malloc failed: heap exhaustion */
-			DEBUG_WARN("malloc: failed in %s\n", __func__);
-			return 1;
-		}
-		memcpy(bwm, &bw, sizeof(bw));
+    if (ret == 0) {
+        /* Success, make a heap copy */
+        struct breakwatch *bwm = malloc(sizeof bw);
+        if (!bwm) {         /* malloc failed: heap exhaustion */
+            DEBUG_WARN("malloc: failed in %s\n", __func__);
+            return 1;
+        }
+        memcpy(bwm, &bw, sizeof(bw));
 
-		/* Add to list */
-		bwm->next = t->bw_list;
-		t->bw_list = bwm;
-	}
+        /* Add to list */
+        bwm->next = t->bw_list;
+        t->bw_list = bwm;
+    }
 
-	return ret;
+    return ret;
 }
 
 int target_breakwatch_clear(target *t,
                             enum target_breakwatch type, target_addr addr, size_t len)
 {
-	struct breakwatch *bwp = NULL, *bw;
-	int ret = 1;
-	for (bw = t->bw_list; bw; bwp = bw, bw = bw->next)
-		if ((bw->type == type) &&
-		    (bw->addr == addr) &&
-		    (bw->size == len))
-			break;
+    struct breakwatch *bwp = NULL, *bw;
+    int ret = 1;
+    for (bw = t->bw_list; bw; bwp = bw, bw = bw->next)
+        if ((bw->type == type) &&
+            (bw->addr == addr) &&
+            (bw->size == len))
+            break;
 
-	if (bw == NULL)
-		return -1;
+    if (bw == NULL)
+        return -1;
 
-	if (t->breakwatch_clear)
-		ret = t->breakwatch_clear(t, bw);
+    if (t->breakwatch_clear)
+        ret = t->breakwatch_clear(t, bw);
 
-	if (ret == 0) {
-		if (bwp == NULL) {
-			t->bw_list = bw->next;
-		} else {
-			bwp->next = bw->next;
-		}
-		free(bw);
-	}
-	return ret;
+    if (ret == 0) {
+        if (bwp == NULL) {
+            t->bw_list = bw->next;
+        } else {
+            bwp->next = bw->next;
+        }
+        free(bw);
+    }
+    return ret;
 }
 
 /* Accessor functions */
 size_t target_regs_size(target *t)
 {
-	return t->regs_size;
+    return t->regs_size;
 }
 
 const char *target_tdesc(target *t)
 {
-	return t->tdesc ? t->tdesc : "";
+    return t->tdesc ? t->tdesc : "";
 }
 
 const char *target_driver_name(target *t)
 {
-	return t->driver;
+    return t->driver;
 }
 
 const char *target_core_name(target *t)
 {
-	return t->core;
+    return t->core;
 }
 
 unsigned int target_designer(target *t)
 {
-	return t->t_designer;
+    return t->t_designer;
 }
 
 unsigned int target_idcode(target *t)
 {
-	return t->idcode;
+    return t->idcode;
 }
 
 uint32_t target_mem_read32(target *t, uint32_t addr)
 {
-	uint32_t ret;
-	t->mem_read(t, &ret, addr, sizeof(ret));
-	return ret;
+    uint32_t ret;
+    t->mem_read(t, &ret, addr, sizeof(ret));
+    return ret;
 }
 
 void target_mem_write32(target *t, uint32_t addr, uint32_t value)
 {
-	t->mem_write(t, addr, &value, sizeof(value));
+    t->mem_write(t, addr, &value, sizeof(value));
 }
 
 uint16_t target_mem_read16(target *t, uint32_t addr)
 {
-	uint16_t ret;
-	t->mem_read(t, &ret, addr, sizeof(ret));
-	return ret;
+    uint16_t ret;
+    t->mem_read(t, &ret, addr, sizeof(ret));
+    return ret;
 }
 
 void target_mem_write16(target *t, uint32_t addr, uint16_t value)
 {
-	t->mem_write(t, addr, &value, sizeof(value));
+    t->mem_write(t, addr, &value, sizeof(value));
 }
 
 uint8_t target_mem_read8(target *t, uint32_t addr)
 {
-	uint8_t ret;
-	t->mem_read(t, &ret, addr, sizeof(ret));
-	return ret;
+    uint8_t ret;
+    t->mem_read(t, &ret, addr, sizeof(ret));
+    return ret;
 }
 
 void target_mem_write8(target *t, uint32_t addr, uint8_t value)
 {
-	t->mem_write(t, addr, &value, sizeof(value));
+    t->mem_write(t, addr, &value, sizeof(value));
 }
 
 void target_command_help(target *t)
 {
-	for (struct target_command_s *tc = t->commands; tc; tc = tc->next) {
-		tc_printf(t, "%s specific commands:\n", tc->specific_name);
-		for(const struct command_s *c = tc->cmds; c->cmd; c++)
-			tc_printf(t, "\t%s -- %s\n", c->cmd, c->help);
-	}
+    for (struct target_command_s *tc = t->commands; tc; tc = tc->next) {
+        tc_printf(t, "%s specific commands:\n", tc->specific_name);
+        for(const struct command_s *c = tc->cmds; c->cmd; c++)
+            tc_printf(t, "\t%s -- %s\n", c->cmd, c->help);
+    }
 }
 
 int target_command(target *t, int argc, const char *argv[])
 {
-	for (struct target_command_s *tc = t->commands; tc; tc = tc->next)
-		for(const struct command_s *c = tc->cmds; c->cmd; c++)
-			if(!strncmp(argv[0], c->cmd, strlen(argv[0])))
-				return (c->handler(t, argc, argv)) ? 0 : 1;
-	return -1;
+    for (struct target_command_s *tc = t->commands; tc; tc = tc->next)
+        for(const struct command_s *c = tc->cmds; c->cmd; c++)
+            if(!strncmp(argv[0], c->cmd, strlen(argv[0])))
+                return (c->handler(t, argc, argv)) ? 0 : 1;
+    return -1;
 }
 
 void tc_printf(target *t, const char *fmt, ...)
 {
-	(void)t;
-	va_list ap;
+    (void)t;
+    va_list ap;
 
-	if (t->tc == NULL)
-		return;
+    if (t->tc == NULL)
+        return;
 
-	va_start(ap, fmt);
-	t->tc->printf(t->tc, fmt, ap);
-	fflush(stdout);
-	va_end(ap);
+    va_start(ap, fmt);
+    t->tc->printf(t->tc, fmt, ap);
+    fflush(stdout);
+    va_end(ap);
 }
 
 /* Interface to host system calls */
 int tc_open(target *t, target_addr path, size_t plen,
             enum target_open_flags flags, mode_t mode)
 {
-	if (t->tc->open == NULL) {
-		t->tc->errno_ = TARGET_ENFILE;
-		return -1;
-	}
-	return t->tc->open(t->tc, path, plen, flags, mode);
+    if (t->tc->open == NULL) {
+        t->tc->errno_ = TARGET_ENFILE;
+        return -1;
+    }
+    return t->tc->open(t->tc, path, plen, flags, mode);
 }
 
 int tc_close(target *t, int fd)
 {
-	if (t->tc->close == NULL) {
-		t->tc->errno_ = TARGET_EBADF;
-		return -1;
-	}
-	return t->tc->close(t->tc, fd);
+    if (t->tc->close == NULL) {
+        t->tc->errno_ = TARGET_EBADF;
+        return -1;
+    }
+    return t->tc->close(t->tc, fd);
 }
 
 int tc_read(target *t, int fd, target_addr buf, unsigned int count)
 {
-	if (t->tc->read == NULL)
-		return 0;
-	return t->tc->read(t->tc, fd, buf, count);
+    if (t->tc->read == NULL)
+        return 0;
+    return t->tc->read(t->tc, fd, buf, count);
 }
 
 int tc_write(target *t, int fd, target_addr buf, unsigned int count)
 {
-	if (t->tc->write == NULL)
-		return 0;
-	return t->tc->write(t->tc, fd, buf, count);
+    if (t->tc->write == NULL)
+        return 0;
+    return t->tc->write(t->tc, fd, buf, count);
 }
 
 long tc_lseek(target *t, int fd, long offset, enum target_seek_flag flag)
 {
-	if (t->tc->lseek == NULL)
-		return 0;
-	return t->tc->lseek(t->tc, fd, offset, flag);
+    if (t->tc->lseek == NULL)
+        return 0;
+    return t->tc->lseek(t->tc, fd, offset, flag);
 }
 
 int tc_rename(target *t, target_addr oldpath, size_t oldlen,
                          target_addr newpath, size_t newlen)
 {
-	if (t->tc->rename == NULL) {
-		t->tc->errno_ = TARGET_ENOENT;
-		return -1;
-	}
-	return t->tc->rename(t->tc, oldpath, oldlen, newpath, newlen);
+    if (t->tc->rename == NULL) {
+        t->tc->errno_ = TARGET_ENOENT;
+        return -1;
+    }
+    return t->tc->rename(t->tc, oldpath, oldlen, newpath, newlen);
 }
 
 int tc_unlink(target *t, target_addr path, size_t plen)
 {
-	if (t->tc->unlink == NULL) {
-		t->tc->errno_ = TARGET_ENOENT;
-		return -1;
-	}
-	return t->tc->unlink(t->tc, path, plen);
+    if (t->tc->unlink == NULL) {
+        t->tc->errno_ = TARGET_ENOENT;
+        return -1;
+    }
+    return t->tc->unlink(t->tc, path, plen);
 }
 
 int tc_stat(target *t, target_addr path, size_t plen, target_addr buf)
 {
-	if (t->tc->stat == NULL) {
-		t->tc->errno_ = TARGET_ENOENT;
-		return -1;
-	}
-	return t->tc->stat(t->tc, path, plen, buf);
+    if (t->tc->stat == NULL) {
+        t->tc->errno_ = TARGET_ENOENT;
+        return -1;
+    }
+    return t->tc->stat(t->tc, path, plen, buf);
 }
 
 int tc_fstat(target *t, int fd, target_addr buf)
 {
-	if (t->tc->fstat == NULL) {
-		return 0;
-	}
-	return t->tc->fstat(t->tc, fd, buf);
+    if (t->tc->fstat == NULL) {
+        return 0;
+    }
+    return t->tc->fstat(t->tc, fd, buf);
 }
 
 int tc_gettimeofday(target *t, target_addr tv, target_addr tz)
 {
-	if (t->tc->gettimeofday == NULL) {
-		return -1;
-	}
-	return t->tc->gettimeofday(t->tc, tv, tz);
+    if (t->tc->gettimeofday == NULL) {
+        return -1;
+    }
+    return t->tc->gettimeofday(t->tc, tv, tz);
 }
 
 int tc_isatty(target *t, int fd)
 {
-	if (t->tc->isatty == NULL) {
-		return 1;
-	}
-	return t->tc->isatty(t->tc, fd);
+    if (t->tc->isatty == NULL) {
+        return 1;
+    }
+    return t->tc->isatty(t->tc, fd);
 }
 
 int tc_system(target *t, target_addr cmd, size_t cmdlen)
 {
-	if (t->tc->system == NULL) {
-		return -1;
-	}
-	return t->tc->system(t->tc, cmd, cmdlen);
+    if (t->tc->system == NULL) {
+        return -1;
+    }
+    return t->tc->system(t->tc, cmd, cmdlen);
 }

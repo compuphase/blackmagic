@@ -37,10 +37,12 @@ SRC =			\
 	lpc11xx.c	\
 	lpc17xx.c	\
 	lpc15xx.c	\
+	lpc40xx.c	\
 	lpc43xx.c	\
 	lpc546xx.c	\
 	kinetis.c	\
 	main.c		\
+	maths_utils.c	\
 	morse.c		\
 	msp432.c	\
 	nrf51.c		\
@@ -53,6 +55,7 @@ SRC =			\
 	samd.c		\
 	samx5x.c	\
 	stm32f1.c	\
+	ch32f1.c	\
 	stm32f4.c	\
 	stm32h7.c	\
 	stm32l0.c	\
@@ -145,7 +148,8 @@ all_platforms:
 
 command.c: include/version.h
 
-include/version.h: FORCE
-	$(Q)echo " GIT include/version.h"
-	$(Q)echo "#define FIRMWARE_VERSION \"$(shell git describe --always --dirty --tags)\"" > $@
+#include/version.h: FORCE
+#	$(Q)echo " GIT include/version.h"
+#	$(Q)echo "#define FIRMWARE_VERSION \"$(shell git describe --always --dirty --tags)\"" > $@
+
 -include *.d

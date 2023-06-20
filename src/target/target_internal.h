@@ -25,9 +25,9 @@ extern target *target_list;
 target *target_new(void);
 
 struct target_ram {
-	target_addr start;
-	size_t length;
-	struct target_ram *next;
+    target_addr start;
+    size_t length;
+    struct target_ram *next;
 };
 
 struct target_flash;
@@ -36,106 +36,108 @@ typedef int (*flash_write_func)(struct target_flash *f, target_addr dest,
                                 const void *src, size_t len);
 typedef int (*flash_done_func)(struct target_flash *f);
 struct target_flash {
-	target_addr start;
-	size_t length;
-	size_t blocksize;
-	flash_erase_func erase;
-	flash_write_func write;
-	flash_done_func done;
-	target *t;
-	uint8_t erased;
-	size_t buf_size;
-	struct target_flash *next;
-	target_addr buf_addr;
-	void *buf;
+    target_addr start;
+    size_t length;
+    size_t blocksize;
+    flash_erase_func erase;
+    flash_write_func write;
+    flash_done_func done;
+    target *t;
+    uint8_t erased;
+    size_t buf_size;
+    struct target_flash *next;
+    target_addr buf_addr;
+    void *buf;
 };
 
 typedef bool (*cmd_handler)(target *t, int argc, const char **argv);
 
 struct command_s {
-	const char *cmd;
-	cmd_handler handler;
-	const char *help;
+    const char *cmd;
+    cmd_handler handler;
+    const char *help;
 };
 
 struct target_command_s {
-	const char *specific_name;
-	const struct command_s *cmds;
-	struct target_command_s *next;
+    const char *specific_name;
+    const struct command_s *cmds;
+    struct target_command_s *next;
 };
 
 struct breakwatch {
-	struct breakwatch *next;
-	enum target_breakwatch type;
-	target_addr addr;
-	size_t size;
-	uint32_t reserved[4]; /* for use by the implementing driver */
+    struct breakwatch *next;
+    enum target_breakwatch type;
+    target_addr addr;
+    size_t size;
+    uint32_t reserved[4]; /* for use by the implementing driver */
 };
 
 #define MAX_CMDLINE 81
 
 struct target_s {
-	bool attached;
-	struct target_controller *tc;
+    bool attached;
+    struct target_controller *tc;
 
-	/* Attach/Detach funcitons */
-	bool (*attach)(target *t);
-	void (*detach)(target *t);
-	bool (*check_error)(target *t);
+    /* Attach/Detach funcitons */
+    bool (*attach)(target *t);
+    void (*detach)(target *t);
+    bool (*check_error)(target *t);
 
-	/* Memory access functions */
-	void (*mem_read)(target *t, void *dest, target_addr src,
-	                 size_t len);
-	void (*mem_write)(target *t, target_addr dest,
-	                  const void *src, size_t len);
+    /* Memory access functions */
+    void (*mem_read)(target *t, void *dest, target_addr src,
+                     size_t len);
+    void (*mem_write)(target *t, target_addr dest,
+                      const void *src, size_t len);
 
-	/* Register access functions */
-	size_t regs_size;
-	const char *tdesc;
-	void (*regs_read)(target *t, void *data);
-	void (*regs_write)(target *t, const void *data);
-	ssize_t (*reg_read)(target *t, int reg, void *data, size_t max);
-	ssize_t (*reg_write)(target *t, int reg, const void *data, size_t size);
+    /* Register access functions */
+    size_t regs_size;
+    const char *tdesc;
+    void (*regs_read)(target *t, void *data);
+    void (*regs_write)(target *t, const void *data);
+    ssize_t (*reg_read)(target *t, int reg, void *data, size_t max);
+    ssize_t (*reg_write)(target *t, int reg, const void *data, size_t size);
 
-	/* Halt/resume functions */
-	void (*reset)(target *t);
-	void (*extended_reset)(target *t);
-	void (*halt_request)(target *t);
-	enum target_halt_reason (*halt_poll)(target *t, target_addr *watch);
-	void (*halt_resume)(target *t, bool step);
+    /* Halt/resume functions */
+    void (*reset)(target *t);
+    void (*extended_reset)(target *t);
+    void (*halt_request)(target *t);
+    enum target_halt_reason (*halt_poll)(target *t, target_addr *watch);
+    void (*halt_resume)(target *t, bool step);
 
-	/* Break-/watchpoint functions */
-	int (*breakwatch_set)(target *t, struct breakwatch*);
-	int (*breakwatch_clear)(target *t, struct breakwatch*);
-	struct breakwatch *bw_list;
+    /* Break-/watchpoint functions */
+    int (*breakwatch_set)(target *t, struct breakwatch*);
+    int (*breakwatch_clear)(target *t, struct breakwatch*);
+    struct breakwatch *bw_list;
 
-	/* target-defined options */
-	unsigned target_options;
-	uint16_t t_designer;
-	uint16_t idcode;
-	void *target_storage;
-	union {
-		bool unsafe_enabled;
-		bool ke04_mode;
-	};
+    /* target-defined options */
+    unsigned target_options;
+    uint16_t t_designer;
+    uint16_t idcode;
+    void *target_storage;
+    union {
+        bool unsafe_enabled;
+        bool ke04_mode;
+    };
 
-	struct target_ram *ram;
-	struct target_flash *flash;
+    struct target_ram *ram;
+    struct target_flash *flash;
 
-	/* Other stuff */
-	const char *driver;
-	uint32_t cpuid;
-	char *core;
-	char cmdline[MAX_CMDLINE];
-	target_addr heapinfo[4];
-	struct target_command_s *commands;
+    /* Other stuff */
+    const char *driver;
+    uint32_t cpuid;
+    char *core;
+    char cmdline[MAX_CMDLINE];
+    target_addr heapinfo[4];
+    struct target_command_s *commands;
 
-	struct target_s *next;
+    struct target_s *next;
 
-	void *priv;
-	void (*priv_free)(void *);
+    void *priv;
+    void (*priv_free)(void *);
 };
 
+void target_ram_map_free(target *t);
+void target_flash_map_free(target *t);
 void target_mem_map_free(target *t);
 void target_add_commands(target *t, const struct command_s *cmds, const char *name);
 void target_add_ram(target *t, target_addr start, uint32_t len);
@@ -173,6 +175,7 @@ int tc_system(target *t, target_addr cmd, size_t cmdlen);
 /* Probe for various targets.
  * Actual functions implemented in their respective drivers.
  */
+bool ch32f1_probe(target *t); // will catch all the clones
 bool gd32f1_probe(target *t);
 bool stm32f1_probe(target *t);
 bool stm32f4_probe(target *t);
@@ -185,8 +188,10 @@ bool lmi_probe(target *t);
 bool lpc11xx_probe(target *t);
 bool lpc15xx_probe(target *t);
 bool lpc17xx_probe(target *t);
+bool lpc40xx_probe(target *t);
 bool lpc43xx_probe(target *t);
 bool lpc546xx_probe(target *t);
+bool samx7x_probe(target *t);
 bool sam3x_probe(target *t);
 bool sam4l_probe(target *t);
 bool nrf51_probe(target *t);
