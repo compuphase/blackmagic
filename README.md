@@ -1,113 +1,13 @@
 Black Magic Probe
 =================
 
-[![Discord](https://img.shields.io/discord/613131135903596547?logo=discord)](https://discord.gg/P7FYThy)
+**Nota Bene** This is a fork of release 1.7 of the original [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic). For newer releases, please see that project. For documentation on the Black Magic Probe, also go to the original project, or read my free e-book [Embedded Debugging with the Black Magic Probe](https://github.com/compuphase/Black-Magic-Probe-Book).
 
-Firmware for the Black Magic Debug Probe.
+## Why does this fork exist?
+The official release 1.7 does not support a few of the micro-controllers of the LPC family (by NXP) that we use a lot for our products. I am specifically referring to the LPC800 series and the LPC1110-**XL** series.
 
-The Black Magic Probe is a modern, in-application debugging tool for
-embedded microprocessors. It allows you see what is going on 'inside' an
-application running on an embedded microprocessor while it executes. It is
-able to control and examine the state of the target microprocessor using a
-JTAG or Serial Wire Debugging (SWD) port and on-chip debug logic provided
-by the microprocessor. The probe connects to a host computer using a
-standard USB interface. The user is able to control exactly what happens
-using the GNU source level debugging software, GDB.
-Serial Wire Output (SWO) allows the target to write tracing and logging to the host
-without using usb or serial port. Decoding SWO in the probe itself
-makes [SWO viewing as simple as connecting to a serial port](https://github.com/blackmagic-debug/blackmagic/wiki/Serial-Wire-Output).
+In release 1.8, the low-level handling of the SWD protocol (done with bit-banging) was refactored. Due to the changed sequencing of instructions, the minimum set-up and hold times for the `SWDIO` signal were no longer upheld. More concretely, the probe drives the clock line (`SWCLK`); on a *read*, a target sets the `SWDIO` pin on a falling edge of SWCLK; the probe then polls `SWDIO`, but *after* a mimimum "set-up" delay of 4ns. In all 1.8.x releases, this minimum set-up time was not respected. It actually works... some of the time. For ARM Cortex micro-controllers, that 4ns is the *maximum* time they have to set `SWDIO`, and most are way faster. However, it is obviously a risky strategy to ignore the set-up and hold times. It is possible that the set-up times are a bit more critical on LCP micro-controllers than on an STM32 or others, but the net result is that the 1.8.x releases were *unreliable* for use with the micro-controllers that we use most.
 
+Release 1.9 finaly corrected the SWD protocol handling (respecting the set-up & hold times, see above). However, the method for probing the NXP LPC processor family had been refactored, and due to a divide-by-zero error, the Black Magic Probe (with firmware 1.9) crashes on *any* target with an LPC processor. The 1.9.1 release fixes that, but it still crashes as soon as you try to download code into Flash memory (those routines have been refactored too).
 
-Resources
-=========
-
- * [Documentation](https://github.com/blackmagic-debug/blackmagic/wiki)
- * [Binary builds](http://builds.blacksphere.co.nz/blackmagic)
-
-
-Toolchain specific remarks
-==========================
-Most firmware building is done with the most recent suite from https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm.
-If you have a toolchain from other sources and find problems, check if it is a failure of your toolchain and if not open an issue or better provide a pull request with a fix.
-
-OS specific remarks for BMP-Hosted
-==================================
-Most hosted building is done on and for Linux. BMP-hosted for windows can also be build with Mingw on Linux.<br>
-Building hosted for BMP firmware probes only with "make PROBE_HOST HOSTED_BMP_ONLY=1" does not require libusb, libftdi and evt. libhidapi development headers and libraries for running.<br>
-On BSD/Macos, using dev/tty.usbmodemXXX should work but unresolved discussions indicate a hanging open() call on the second invocation. If that happens, try with cu.usbmodemXXX.<br>
-
-Reporting problems
-==================
-Before reporting issues, check against the latest git version. If possible, test against another target /and/or debug probe. Consider broken USB cables and connectors. Try to reproduce with bmp-hosted with at least debug bit 1 set (blackmagic -v 1 ...), as debug messages will be dumped to the starting console. When reporting issues, be as specific as possible!
-
-Sample Session
-=============
-```console
-> arm-none-eabi-gdb gpio.elf
-...<GDB Copyright message>
-(gdb) tar ext /dev/ttyACM0
-Remote debugging using /dev/ttyACM0
-(gdb) mon s
-Target voltage: 2.94V
-Available Targets:
-No. Att Driver
- 1      STM32F40x M3/M4
-(gdb) att 1
-Attaching to program: /devel/en_apps/gpio/f4_discovery/gpio.elf, Remote target
-0x08002298 in UsartIOCtl ()
-(gdb) load
-Loading section .text, size 0x5868 lma 0x8000000
-Loading section .data, size 0x9e0 lma 0x8005868
-Loading section .rodata, size 0x254 lma 0x8006248
-Start address 0x800007c, load size 25756
-Transfer rate: 31 KB/sec, 919 bytes/write.
-(gdb) b main
-Breakpoint 1 at 0x80000e8: file /devel/en_apps/gpio/f4_discovery/../gpio.c, line 70.
-(gdb) r
-Starting program: /devel/en_apps/gpio/f4_discovery/gpio.elf 
-Note: automatically using hardware breakpoints for read-only addresses.
-
-Breakpoint 1, main () at /devel/en_apps/gpio/f4_discovery/../gpio.c:70
-70      {
-```
-
-BLACKMAGIC
-==========
-
-You can also build blackmagic as a PC hosted application
-"make PROBE_HOST=hosted"
-
-This builds the same GDB server, that is running on the Black Magic Probe.
-While connection to the Black Magic Probe GDB server is via serial line,
-connection to the PC-Hosted GDB server is via TCP port 2000 for the first
-GDB server and higher for more invokations. Use "tar(get) ext(ented) :2000"
-to connect.
-PC-hosted BMP GDB server can talk to
-- Black Magic Probe firmware probes via the USB-serial port
-- ST-LinkV2 and V3 with recent firmware
-- CMSIS-DAP compatible probes
-- JLINK probes
-- FTDI MPSSE based probe.
-
-When connected to a single BMP supported probe, starting "blackmagic" w/o any
-arguments starts the server. When several BMP supported probes are connected,
-their types, position and serial number is displayed and the program exits.
-Add "-P (position)" to the next invocation to select one.
-For the setup from the sample session above:
-In another terminal:
-```console
-> blackmagic
-Using 1d50:6018 E2E489E7 Black Sphere Technologies Black Magic Probe (STLINK), (Firmware v1.6.1-477-g70bb131-dirty)
-Remote is Black Magic Probe (STLINK), (Firmware v1.6.1-477-g70bb131-dirty) v1.6.1-477-g70bb131-dirty
-Listening on TCP: 2000
-And in the GDB terminal:
-(gdb) target ext :2000
-Remote debugging using :2000
-(gdb) mon s
-...
-```
-
-PC hosted BMP also allows to flash, read and verify a binary file, by default
-starting at lowest flash address. The "-t" argument displays information about the
-connected target. Use "-h " to get a list of supported options.
-
+So, in summary, since 1.7, there has not been a single release of the firmware that is usable with the LPC family of micro-controllers.
