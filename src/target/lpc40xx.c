@@ -63,15 +63,15 @@ typedef struct iap_result {
 	uint32_t values[4];
 } iap_result_s;
 
-typedef struct lpc40xx_priv {
+struct lpc40xx_priv {
 	uint32_t mpu_ctrl_state;
 	uint32_t memmap_state;
-} lpc40xx_priv_s;
+};
 
 static void lpc40xx_extended_reset(target *t);
 static bool lpc40xx_enter_flash_mode(target *t);
 static bool lpc40xx_exit_flash_mode(target *t);
-//??? static bool lpc40xx_mass_erase(target *t);
+//TODO static bool lpc40xx_mass_erase(target *t);
 enum iap_status lpc40xx_iap_call(target *t, void *result, enum iap_cmd cmd, ...);
 
 static void lpc40xx_add_flash(target *t, uint32_t addr, size_t len, size_t erasesize, uint8_t base_sector)
@@ -96,7 +96,7 @@ bool lpc40xx_probe(target *t)
 		target_halt_request(t);
 
 		/* Allocate private storage so the flash mode entry/exit routines can save state */
-		lpc40xx_priv_s *priv = calloc(1, sizeof(*priv));
+		struct lpc40xx_priv *priv = calloc(1, sizeof(*priv));
 		if (!priv) { /* calloc failed: heap exhaustion */
 			DEBUG_WARN("calloc: failed in %s\n", __func__);
 			return false;
@@ -129,9 +129,9 @@ bool lpc40xx_probe(target *t)
 		case 0x47011132U: /* LPC4074 */
 			t->driver = "LPC40xx";
 			t->extended_reset = lpc40xx_extended_reset;
-			//??? t->mass_erase = lpc40xx_mass_erase;
-			//??? t->enter_flash_mode = lpc40xx_enter_flash_mode;
-			//??? t->exit_flash_mode = lpc40xx_exit_flash_mode;
+			//TODO t->mass_erase = lpc40xx_mass_erase;
+			t->enter_flash_mode = lpc40xx_enter_flash_mode;
+			t->exit_flash_mode = lpc40xx_exit_flash_mode;
 			target_add_ram(t, 0x10000000U, 0x10000U);
 			target_add_ram(t, 0x2007c000U, 0x4000U);
 			target_add_ram(t, 0x20080000U, 0x4000U);
@@ -145,7 +145,7 @@ bool lpc40xx_probe(target *t)
 
 static bool lpc40xx_enter_flash_mode(target *const t)
 {
-	lpc40xx_priv_s *const priv = (lpc40xx_priv_s *)t->target_storage;
+	struct lpc40xx_priv *priv = (struct lpc40xx_priv*)t->target_storage;
 	/* Disable the MPU, if enabled */
 	priv->mpu_ctrl_state = target_mem_read32(t, LPC40xx_MPU_CTRL);
 	target_mem_write32(t, LPC40xx_MPU_CTRL, 0);
@@ -156,14 +156,14 @@ static bool lpc40xx_enter_flash_mode(target *const t)
 
 static bool lpc40xx_exit_flash_mode(target *const t)
 {
-	const lpc40xx_priv_s *const priv = (lpc40xx_priv_s *)t->target_storage;
+	const lpc40xx_priv *priv = (const struct lpc40xx_priv*)t->target_storage;
 	/* Restore the memory mapping and MPU state (in that order!) */
 	target_mem_write32(t, LPC40xx_MEMMAP, priv->memmap_state);
 	target_mem_write32(t, LPC40xx_MPU_CTRL, priv->mpu_ctrl_state);
 	return true;
 }
 
-#if 0 //???
+#if 0 //TODO
 static bool lpc40xx_mass_erase(target *t)
 {
 	iap_result_s result;
@@ -263,7 +263,7 @@ enum iap_status lpc40xx_iap_call(target *t, void *result, enum iap_cmd cmd, ...)
 	target_halt_resume(t, false);
 	while (!target_halt_poll(t, NULL)) {
 		if (cmd == IAP_CMD_ERASE)
-			/*??? target_print_progress(&timeout)*/;
+			/*TODO target_print_progress(&timeout)*/;
 		else if (cmd == IAP_CMD_PARTID && platform_timeout_is_expired(&timeout)) {
 			target_halt_request(t);
 			return IAP_STATUS_INVALID_COMMAND;
@@ -272,5 +272,5 @@ enum iap_status lpc40xx_iap_call(target *t, void *result, enum iap_cmd cmd, ...)
 
 	/* Copy back just the results */
 	target_mem_read(t, result, iap_params_addr, sizeof(iap_result_s));
-	return (enum iap_status)((uint32_t*)result);    //??? result->return_code;
+	return (enum iap_status)((uint32_t*)result);
 }

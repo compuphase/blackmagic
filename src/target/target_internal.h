@@ -109,7 +109,15 @@ struct target_s {
     int (*breakwatch_clear)(target *t, struct breakwatch*);
     struct breakwatch *bw_list;
 
-    /* target-defined options */
+    /* Recovery functions */
+    //TODO bool (*mass_erase)(target_s *t);
+
+    /* Flash functions */
+    bool (*enter_flash_mode)(target *t);
+    bool (*exit_flash_mode)(target *t);
+    bool flash_mode;
+
+    /* Target-defined options */
     unsigned target_options;
     uint16_t t_designer;
     uint16_t idcode;
@@ -202,4 +210,5 @@ bool efm32_probe(target *t);
 bool msp432_probe(target *t);
 bool ke04_probe(target *t);
 bool rp_probe(target *t);
+bool renesas_probe(target *t);
 #endif

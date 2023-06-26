@@ -389,9 +389,6 @@ bool cortexm_probe(ADIv5_AP_t *ap)
             target_halt_resume(t, 0);
         }
         break;
-    case AP_DESIGNER_CS:
-        PROBE(stm32f1_probe);
-        break;
     case AP_DESIGNER_GIGADEVICE:
         PROBE(gd32f1_probe);
         break;
@@ -427,6 +424,12 @@ bool cortexm_probe(ADIv5_AP_t *ap)
     case AP_DESIGNER_SPECULAR:
         PROBE(lpc11xx_probe); /* LPC845 */
         break;
+    case AP_DESIGNER_RASPBERRY:
+        PROBE(rp_probe);
+        break;
+	case AP_MANUFACTURER_RENESAS:
+		//TODO PROBE(renesas_probe);
+		break;
     default:
         if (ap->ap_designer != AP_DESIGNER_ARM) {
             /* Report unexpected designers */
@@ -439,8 +442,6 @@ bool cortexm_probe(ADIv5_AP_t *ap)
 #endif
         }
         if (ap->ap_partno == 0x4c0)  { /* Cortex-M0+ ROM */
-            if ((ap->dp->targetid & 0xfff) == AP_DESIGNER_RASPBERRY)
-                PROBE(rp_probe);
             PROBE(lpc11xx_probe); /* LPC8 */
         } else if (ap->ap_partno == 0x4c3)  { /* Cortex-M3 ROM */
             PROBE(ch32f1_probe);
@@ -989,8 +990,8 @@ static uint32_t dwt_mask(size_t len)
       number of least-significant bits of the address to ignore during
       match (maximum 31). */
     if (len < 2)
-		return 0;
-	return MIN(ulog2(len - 1), 31);
+        return 0;
+    return MIN(ulog2(len - 1), 31);
 }
 
 static uint32_t dwt_func(target *t, enum target_breakwatch type)
@@ -1418,7 +1419,7 @@ static int cortexm_hostio_request(target *t)
         uint64_t usec = timeval_buf.tv_usec;
         if (time0_sec > sec) time0_sec = sec;
         sec -= time0_sec;
-		/* Cast down microseconds to avoid u64 division */
+        /* Cast down microseconds to avoid u64 division */
         uint32_t csec32 = ((uint32_t)usec / 10000U) + (sec * 100U);
         int32_t csec = csec32 & 0x7fffffffU;
         ret = csec;

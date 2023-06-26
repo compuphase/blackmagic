@@ -147,20 +147,6 @@ int jtag_scan(const uint8_t *irlens)
 			}
 			jtag_devs[i].jd_descr = "ATMEL";
 			break;
-		case DESIGNER_XILINX:
-			if (!irlens) {
-				/* Guessed irlen for XILINX devices is wrong.
-				 * IR data contains status bits!
-				 */
-				DEBUG_WARN("Please provide irlens as chain contains XILINX devices!\n");
-				return 0;
-			}
-			jtag_devs[i].jd_descr = "XILINX";
-			break;
-		case DESIGNER_XAMBALA:
-			expected_irlen = 5;
-			jtag_devs[i].jd_descr = "RVDBG013";
-			break;
 		case AP_DESIGNER_GIGADEVICE:
 			expected_irlen = 5;
 			jtag_devs[i].jd_descr = "GIGADEVICE BSD";

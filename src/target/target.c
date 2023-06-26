@@ -25,9 +25,9 @@
 
 target *target_list = NULL;
 
-static int target_flash_write_buffered(struct target_flash *f,
-                                       target_addr dest, const void *src, size_t len);
-static int target_flash_done_buffered(struct target_flash *f);
+static bool target_flash_write_buffered(struct target_flash *f,
+                                        target_addr dest, const void *src, size_t len);
+static bool target_flash_done_buffered(struct target_flash *f);
 
 static bool nop_function(void)
 {
@@ -124,7 +124,8 @@ void target_list_free(void)
             free(target_list->commands);
             target_list->commands = tc;
         }
-        free(target_list->target_storage);
+        if (target_list->target_storage)
+            free(target_list->target_storage);
         target_mem_map_free(target_list);
         while (target_list->bw_list) {
             void * next = target_list->bw_list->next;
@@ -239,7 +240,7 @@ bool target_mem_map(target *t, char *tmp, size_t len)
     return true;
 }
 
-static struct target_flash *flash_for_addr(target *t, uint32_t addr)
+static struct target_flash *target_flash_for_addr(target *t, uint32_t addr)
 {
     for (struct target_flash *f = t->flash; f; f = f->next)
         if ((f->start <= addr) &&
@@ -248,35 +249,84 @@ static struct target_flash *flash_for_addr(target *t, uint32_t addr)
     return NULL;
 }
 
-int target_flash_erase(target *t, target_addr addr, size_t len)
+static bool target_enter_flash_mode(target *t)
 {
-    int ret = 0;
-    while (len) {
-        struct target_flash *f = flash_for_addr(t, addr);
+    if (t->flash_mode)
+        return true;
+
+    bool ret = true;
+    if (t->enter_flash_mode)
+        ret = t->enter_flash_mode(t);
+    else
+        /* Reset target on flash command */
+        /* This saves us if we're interrupted in IRQ context */
+        target_reset(t);
+
+    if (ret == true)
+        t->flash_mode = true;
+
+    return ret;
+}
+
+static bool target_exit_flash_mode(target *t)
+{
+    if (!t->flash_mode)
+        return true;
+
+    bool ret = true;
+    if (t->exit_flash_mode)
+        ret = t->exit_flash_mode(t);
+    else
+        /* Reset target to known state when done flashing */
+        target_reset(t);
+
+    t->flash_mode = false;
+
+    return ret;
+}
+
+bool target_flash_erase(target *t, target_addr addr, size_t len)
+{
+    if (!target_enter_flash_mode(t))
+        return false;
+
+    bool ret = true; /* Catch false returns with &= */
+    while (len > 0 && ret) {
+        struct target_flash *f = target_flash_for_addr(t, addr);
         if (!f) {
-            DEBUG_WARN("Erase stopped at 0x%06" PRIx32 "\n", addr);
-            return ret;
+            DEBUG_WARN("Requested address is outside the valid range 0x%06" PRIx32 "\n", addr);
+            return false;
         }
+
         size_t tmptarget = MIN(addr + len, f->start + f->length);
         size_t tmplen = tmptarget - addr;
-        ret |= f->erase(f, addr, tmplen);
+        ret &= f->erase(f, addr, tmplen);
+        if (!ret) {
+            DEBUG_WARN("Erase failed at %" PRIx32 "\n", addr);
+            break;
+        }
         addr += tmplen;
         len -= tmplen;
     }
     return ret;
 }
 
-int target_flash_write(target *t,
-                       target_addr dest, const void *src, size_t len)
+bool target_flash_write(target *t,
+                        target_addr dest, const void *src, size_t len)
 {
-    int ret = 0;
-    while (len) {
-        struct target_flash *f = flash_for_addr(t, dest);
+    if (!target_enter_flash_mode(t))
+        return false;
+
+    bool ret = true; /* Catch false returns with &= */
+    while (len > 0 && ret) {
+        struct target_flash *f = target_flash_for_addr(t, dest);
         if (!f)
-            return 1;
+            return false;
         size_t tmptarget = MIN(dest + len, f->start + f->length);
         size_t tmplen = tmptarget - dest;
-        ret |= target_flash_write_buffered(f, dest, src, tmplen);
+        ret &= target_flash_write_buffered(f, dest, src, tmplen);
+        if (!ret)
+            DEBUG_WARN("Write failed at %" PRIx32 "\n", dest);
         dest += tmplen;
         src += tmplen;
         len -= tmplen;
@@ -284,32 +334,32 @@ int target_flash_write(target *t,
     return ret;
 }
 
-int target_flash_done(target *t)
+bool target_flash_done(target *t)
 {
+    if (!t->flash_mode)
+        return false;
+
+    bool ret = true; /* Catch false returns with &= */
     for (struct target_flash *f = t->flash; f; f = f->next) {
-        int tmp = target_flash_done_buffered(f);
-        if (tmp)
-            return tmp;
-        if (f->done) {
-            tmp = f->done(f);
-            if (tmp)
-                return tmp;
-        }
+        ret &= target_flash_done_buffered(f);
+        if (f->done)
+            ret &= f->done(f);
     }
-    return 0;
+    target_exit_flash_mode(t);
+    return ret;
 }
 
-int target_flash_write_buffered(struct target_flash *f,
-                                target_addr dest, const void *src, size_t len)
+bool target_flash_write_buffered(struct target_flash *f,
+                                 target_addr dest, const void *src, size_t len)
 {
-    int ret = 0;
+    bool ret = true; /* Catch false returns with &= */
 
     if (f->buf == NULL) {
         /* Allocate flash sector buffer */
         f->buf = malloc(f->buf_size);
         if (!f->buf) {          /* malloc failed: heap exhaustion */
             DEBUG_WARN("malloc: failed in %s\n", __func__);
-            return 1;
+            return false;
         }
         f->buf_addr = -1;
     }
@@ -319,8 +369,7 @@ int target_flash_write_buffered(struct target_flash *f,
         if (base != f->buf_addr) {
             if (f->buf_addr != (uint32_t)-1) {
                 /* Write sector to flash if valid */
-                ret |= f->write(f, f->buf_addr,
-                                f->buf, f->buf_size);
+                ret &= f->write(f, f->buf_addr, f->buf, f->buf_size);
             }
             /* Setup buffer for a new sector */
             f->buf_addr = base;
@@ -336,10 +385,10 @@ int target_flash_write_buffered(struct target_flash *f,
     return ret;
 }
 
-int target_flash_done_buffered(struct target_flash *f)
+bool target_flash_done_buffered(struct target_flash *f)
 {
-    int ret = 0;
-    if ((f->buf != NULL) &&(f->buf_addr != (uint32_t)-1)) {
+    bool ret = false;
+    if ((f->buf != NULL) && (f->buf_addr != (uint32_t)-1)) {
         /* Write sector to flash if valid */
         ret = f->write(f, f->buf_addr, f->buf, f->buf_size);
         f->buf_addr = -1;
