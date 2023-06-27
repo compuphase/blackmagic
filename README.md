@@ -1,5 +1,4 @@
-Black Magic Probe
-=================
+# Black Magic Probe (for NXP LPC series)
 
 **Nota Bene** This is a fork of release 1.7 of the original [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic). For newer releases, please see that project. For documentation on the Black Magic Probe, also go to the original project, or read my free e-book [Embedded Debugging with the Black Magic Probe](https://github.com/compuphase/Black-Magic-Probe-Book).
 
@@ -10,4 +9,10 @@ While support for these micro-controllers was added in release 1.8 (my contribut
 
 Release 1.9 finally corrected the SWD protocol handling (due to my contribution to this issue). However, the method for probing the NXP LPC processor family had been refactored, and due to a divide-by-zero error, the Black Magic Probe (with firmware 1.9) crashes on *any* target with an LPC processor. The 1.9.1 release fixes that (again, due to my contribution), but it still crashes as soon as you try to download code into Flash memory (those routines have been refactored too).
 
-So, in summary, since version 1.7, there has not been a single release of the firmware that is usable with the LPC family of micro-controllers. And it gets wearisome to help fix an issue, only to see that you still cannot use the next release because something else got broken. Which is why I decided to go back to the latest reliable release, and add corrections and/or improvements as I see fit. This fork will not be the latest and greatest in features, but if you work with micro-controllers from the LPC family, this fork is probably the one that works.
+So, in summary, since version 1.7, there has not been a single release of the firmware that is usable with the LPC family of micro-controllers (and release 1.7 was lacking in support for the LPC family). And it gets wearisome to help fix an issue, only to see that you still cannot use the next release because something else got broken. Which is why I decided to go back to the latest reliable release, and add corrections and/or improvements as I see fit. This fork will not be the latest and greatest in features, but if you work with micro-controllers from the LPC family, this fork is probably the one that works.
+
+## Post 1.7 Features and Fixes
+While this fork is basically release 1.7, selected fixes and changes from later releases have been merged in. The most notable ones are:
+* Added support for LPC800, LPC1110-XL and LPC4000 series.
+* Merged in the "fake thread" support needed for GDB 11 and later (see PR #1125 on the [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic)).
+* Merged the changes needed for hardware revision 6 of the Black Magic Probe (so this fork runs on both BMP v2.1 and BMP v2.3).
