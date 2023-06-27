@@ -26,16 +26,16 @@
 
 static const char hexdigits[] = "0123456789abcdef";
 
-char * hexify(char *hex, const void *buf, size_t size)
+char * hexify(char *hex, const uint8_t *buf, size_t size)
 {
-	char *tmp = hex;
-	const uint8_t *b = buf;
+	char *dst = hex;
+	const uint8_t *src = buf;
 
 	while (size--) {
-		*tmp++ = hexdigits[*b >> 4];
-		*tmp++ = hexdigits[*b++ & 0xF];
+		*dst++ = hexdigits[*src >> 4];
+		*dst++ = hexdigits[*src++ & 0xF];
 	}
-	*tmp++ = 0;
+	*dst++ = 0;
 
 	return hex;
 }
@@ -50,12 +50,12 @@ static uint8_t unhex_digit(char hex)
 	return tmp;
 }
 
-char * unhexify(void *buf, const char *hex, size_t size)
+uint8_t * unhexify(uint8_t *buf, const char *hex, size_t size)
 {
-	uint8_t *b = buf;
+	uint8_t *dst = buf;
 	while (size--) {
-		*b = unhex_digit(*hex++) << 4;
-		*b++ |= unhex_digit(*hex++);
+		*dst = unhex_digit(*hex++) << 4;
+		*dst++ |= unhex_digit(*hex++);
 	}
 	return buf;
 }

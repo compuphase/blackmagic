@@ -30,190 +30,194 @@
 
 #include <stdarg.h>
 
-int gdb_getpacket(char *packet, int size)
+size_t gdb_getpacket(char *packet, size_t size)
 {
-	unsigned char c;
-	unsigned char csum;
-	char recv_csum[3];
-	int i;
+    unsigned char csum;
+    char recv_csum[3];
+    size_t offset = 0;
 
-	while(1) {
-	    /* Wait for packet start */
-		do {
-			/* Spin waiting for a start of packet character - either a gdb
+    while(1) {
+        /* Wait for packet start */
+        do {
+            /* Spin waiting for a start of packet character - either a gdb
              * start ('$') or a BMP remote packet start ('!').
-			 */
-			do {
-				packet[0] = gdb_if_getchar();
-				if (packet[0]==0x04) return 1;
-			} while ((packet[0] != '$') && (packet[0] != REMOTE_SOM));
+             */
+            do {
+                packet[0] = gdb_if_getchar();
+                if (packet[0]==0x04)
+                    return 1;
+            } while ((packet[0] != '$') && (packet[0] != REMOTE_SOM));
 #if PC_HOSTED == 0
-			if (packet[0]==REMOTE_SOM) {
-				/* This is probably a remote control packet
-				 * - get and handle it */
-				i=0;
-				bool gettingRemotePacket=true;
-				while (gettingRemotePacket) {
-					c=gdb_if_getchar();
-					switch (c) {
-					case REMOTE_SOM: /* Oh dear, packet restarts */
-						i=0;
-						break;
+            if (packet[0]==REMOTE_SOM) {
+                /* This is probably a remote control packet
+                 * - get and handle it */
+                offset = 0;
+                bool gettingRemotePacket = true;
+                while (gettingRemotePacket) {
+                    unsigned c = gdb_if_getchar();
+                    switch (c) {
+                    case REMOTE_SOM: /* Oh dear, packet restarts */
+                        offset = 0;
+                        break;
 
-					case REMOTE_EOM: /* Complete packet for processing */
-						packet[i]=0;
-						remotePacketProcess(i,packet);
-						gettingRemotePacket=false;
-						break;
+                    case REMOTE_EOM: /* Complete packet for processing */
+                        packet[offset] = 0;
+                        remotePacketProcess(offset, packet);
+                        gettingRemotePacket = false;
+                        break;
 
-					case '$': /* A 'real' gdb packet, best stop squatting now */
-						packet[0]='$';
-						gettingRemotePacket=false;
-						break;
+                    case '$': /* A 'real' gdb packet, best stop squatting now */
+                        packet[0] = '$';
+                        gettingRemotePacket = false;
+                        break;
 
-					default:
-						if (i<size) {
-							packet[i++]=c;
-						} else {
-							/* Who knows what is going on...return to normality */
-							gettingRemotePacket=false;
-						}
-						break;
-					}
-				}
-				/* Reset the packet buffer start character to zero, because function
-				 * 'remotePacketProcess()' above overwrites this buffer, and
-				 * an arbitrary character may have been placed there. If this is a '$'
-				 * character, this will cause this loop to be terminated, which is wrong.
-				 */
-				packet[0] = 0;
-			}
+                    default:
+                        if (offset < size) {
+                            packet[offset++] = c;
+                        } else {
+                            /* Who knows what is going on...return to normality */
+                            gettingRemotePacket = false;
+                        }
+                        break;
+                    }
+                }
+                /* Reset the packet buffer start character to zero, because function
+                 * 'remotePacketProcess()' above overwrites this buffer, and
+                 * an arbitrary character may have been placed there. If this is a '$'
+                 * character, this will cause this loop to be terminated, which is wrong.
+                 */
+                packet[0] = 0;
+            }
 #endif
-	    } while (packet[0] != '$');
+        } while (packet[0] != '$');
 
-		i = 0; csum = 0;
-		/* Capture packet data into buffer */
-		while((c = gdb_if_getchar()) != '#') {
+        offset = 0;
+        csum = 0;
+        unsigned char c;
+        /* Capture packet data into buffer */
+        while ((c = gdb_if_getchar()) != '#') {
 
-			if(i == size) break; /* Oh shit */
+            /* If we run out of buffer space, exit early */
+            if (offset == size)
+                break;
 
-			if(c == '$') { /* Restart capture */
-				i = 0;
-				csum = 0;
-				continue;
-			}
-			if(c == '}') { /* escaped char */
-				c = gdb_if_getchar();
-				csum += c + '}';
-				packet[i++] = c ^ 0x20;
-				continue;
-			}
-			csum += c;
-			packet[i++] = c;
-		}
-		recv_csum[0] = gdb_if_getchar();
-		recv_csum[1] = gdb_if_getchar();
-		recv_csum[2] = 0;
+            if (c == '$') { /* Restart capture */
+                offset = 0;
+                csum = 0;
+                continue;
+            }
+            if (c == '}') { /* escaped char */
+                c = gdb_if_getchar();
+                csum += c + '}';
+                packet[offset++] = c ^ 0x20;
+                continue;
+            }
+            csum += c;
+            packet[offset++] = c;
+        }
+        recv_csum[0] = gdb_if_getchar();
+        recv_csum[1] = gdb_if_getchar();
+        recv_csum[2] = 0;
 
-		/* return packet if checksum matches */
-		if(csum == strtol(recv_csum, NULL, 16)) break;
+        /* return packet if checksum matches */
+        if (csum == strtol(recv_csum, NULL, 16))
+            break;
 
-		/* get here if checksum fails */
-		gdb_if_putchar('-', 1); /* send nack */
-	}
-	gdb_if_putchar('+', 1); /* send ack */
-	packet[i] = 0;
+        /* get here if checksum fails */
+        gdb_if_putchar('-', 1); /* send nack */
+    }
+    gdb_if_putchar('+', 1); /* send ack */
+    packet[offset] = 0;
 
 #if PC_HOSTED == 1
-	DEBUG_GDB_WIRE("%s : ", __func__);
-	for(int j = 0; j < i; j++) {
-		c = packet[j];
-		if ((c >= 32) && (c < 127))
-			DEBUG_GDB_WIRE("%c", c);
-		else
-			DEBUG_GDB_WIRE("\\x%02X", c);
-	}
-	DEBUG_GDB_WIRE("\n");
+    DEBUG_GDB_WIRE("%s : ", __func__);
+    for(size_t j = 0; j < i; j++) {
+        c = packet[j];
+        if (c >= 32 && c < 127)
+            DEBUG_GDB_WIRE("%c", c);
+        else
+            DEBUG_GDB_WIRE("\\x%02X", c);
+    }
+    DEBUG_GDB_WIRE("\n");
 #endif
-	return i;
+    return offset;
 }
 
-void gdb_putpacket(const char *packet, int size)
+void gdb_putpacket(const char *packet, size_t size)
 {
-	int i;
-	unsigned char csum;
-	unsigned char c;
-	char xmit_csum[3];
-	int tries = 0;
+    char xmit_csum[3];
+    int tries = 0;
 
-	do {
-		DEBUG_GDB_WIRE("%s : ", __func__);
-		csum = 0;
-		gdb_if_putchar('$', 0);
-		for(i = 0; i < size; i++) {
-			c = packet[i];
+    do {
+        DEBUG_GDB_WIRE("%s : ", __func__);
+        unsigned char csum = 0;
+        gdb_if_putchar('$', 0);
+        for (size_t i = 0; i < size; i++) {
+            unsigned char c = packet[i];
 #if PC_HOSTED == 1
-			if ((c >= 32) && (c < 127))
-				DEBUG_GDB_WIRE("%c", c);
-			else
-				DEBUG_GDB_WIRE("\\x%02X", c);
+            if (c >= 32 && c < 127)
+                DEBUG_GDB_WIRE("%c", c);
+            else
+                DEBUG_GDB_WIRE("\\x%02X", c);
 #endif
-			if((c == '$') || (c == '#') || (c == '}') || (c == '*')) {
-				gdb_if_putchar('}', 0);
-				gdb_if_putchar(c ^ 0x20, 0);
-				csum += '}' + (c ^ 0x20);
-			} else {
-				gdb_if_putchar(c, 0);
-				csum += c;
-			}
-		}
-		gdb_if_putchar('#', 0);
-		snprintf(xmit_csum, sizeof(xmit_csum), "%02X", csum);
-		gdb_if_putchar(xmit_csum[0], 0);
-		gdb_if_putchar(xmit_csum[1], 1);
-		DEBUG_GDB_WIRE("\n");
-	} while((gdb_if_getchar_to(2000) != '+') && (tries++ < 3));
+            if (c == '$' || c == '#' || c == '}' || c == '*') {
+                gdb_if_putchar('}', 0);
+                gdb_if_putchar(c ^ 0x20, 0);
+                csum += '}' + (c ^ 0x20);
+            } else {
+                gdb_if_putchar(c, 0);
+                csum += c;
+            }
+        }
+        gdb_if_putchar('#', 0);
+        snprintf(xmit_csum, sizeof(xmit_csum), "%02X", csum);
+        gdb_if_putchar(xmit_csum[0], 0);
+        gdb_if_putchar(xmit_csum[1], 1);
+        DEBUG_GDB_WIRE("\n");
+    } while (gdb_if_getchar_to(2000) != '+' && tries++ < 3);
 }
 
 void gdb_putpacket_f(const char *fmt, ...)
 {
-	va_list ap;
-	char *buf;
-	int size;
+    va_list ap;
+    char *buf;
+    int size;
 
-	va_start(ap, fmt);
-	size = vasprintf(&buf, fmt, ap);
-	gdb_putpacket(buf, size);
-	free(buf);
-	va_end(ap);
+    va_start(ap, fmt);
+    size = vasprintf(&buf, fmt, ap);
+    gdb_putpacket(buf, size);
+    free(buf);
+    va_end(ap);
 }
 
 void gdb_out(const char *buf)
 {
-	char *hexdata;
-	int i;
-
-	hexdata = alloca((i = strlen(buf)*2 + 1) + 1);
-	hexdata[0] = 'O';
-	hexify(hexdata+1, buf, strlen(buf));
-	gdb_putpacket(hexdata, i);
+    int len = strlen(buf);
+    int sz = len * 2 + 1;
+    char *hexdata = calloc(1, sz + 1);
+    if (!hexdata)
+        return;
+    hexdata[0] = 'O';
+    hexify(hexdata + 1, (const uint8_t*)buf, len);
+    gdb_putpacket(hexdata, sz);
+    free(hexdata);
 }
 
 void gdb_voutf(const char *fmt, va_list ap)
 {
-	char *buf;
+    char *buf;
 
-	if (vasprintf(&buf, fmt, ap) < 0)
-		return;
-	gdb_out(buf);
-	free(buf);
+    if (vasprintf(&buf, fmt, ap) < 0)
+        return;
+    gdb_out(buf);
+    free(buf);
 }
 
 void gdb_outf(const char *fmt, ...)
 {
-	va_list ap;
+    va_list ap;
 
-	va_start(ap, fmt);
-	gdb_voutf(fmt, ap);
-	va_end(ap);
+    va_start(ap, fmt);
+    gdb_voutf(fmt, ap);
+    va_end(ap);
 }

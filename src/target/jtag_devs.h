@@ -19,10 +19,10 @@
  */
 
 typedef const struct jtag_dev_descr_s {
-	const uint32_t idcode;
-	const uint32_t idmask;
-	const char * const descr;
-	void (*const handler)(jtag_dev_t *jd);
+    const uint32_t idcode;
+    const uint32_t idmask;
+    const char * const descr;
+    void (*const handler)(uint8_t jd_index);
 } jtag_dev_descr_t;
 extern jtag_dev_descr_t dev_descr[];
 

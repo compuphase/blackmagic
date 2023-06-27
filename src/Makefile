@@ -31,6 +31,7 @@ SRC =			\
 	gdb_hostio.c	\
 	gdb_packet.c	\
 	hex_utils.c	\
+	jtag_devs.c	\
 	jtag_scan.c	\
 	lmi.c		\
 	lpc_common.c	\
@@ -64,6 +65,11 @@ SRC =			\
 	target.c	\
 
 include $(PLATFORM_DIR)/Makefile.inc
+
+ifneq ($(PC_HOSTED),1)
+# Output memory usage information
+LDFLAGS += -Wl,--print-memory-usage
+endif
 
 OPT_FLAGS ?= -Os
 CFLAGS += $(OPT_FLAGS)
@@ -119,7 +125,7 @@ endif
 clean:	host_clean
 	$(Q)echo "  CLEAN"
 	-$(Q)$(RM) *.o *.d *.elf *~ $(TARGET) $(HOSTFILES)
-	-$(Q)$(RM) platforms/*/*.o platforms/*/*.d mapfile include/version.h
+	-$(Q)$(RM) platforms/*/*.o platforms/*/*.d mapfile
 
 all_platforms:
 	$(Q)set -e ;\

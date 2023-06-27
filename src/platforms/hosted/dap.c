@@ -278,7 +278,10 @@ void dap_reset_pin(int state)
 	buf[1] = state ? DAP_SWJ_nRESET : 0; // Value
 	buf[2] = DAP_SWJ_nRESET; // Select
 	buf[3] = 0; // Wait
-	dbg_dap_cmd(buf, sizeof(buf), 4);
+	buf[4] = 0; // Wait
+	buf[5] = 0; // Wait
+	buf[6] = 0; // Wait
+	dbg_dap_cmd(buf, sizeof(buf), 7);
 }
 
 void dap_trst_reset(void)
@@ -721,9 +724,9 @@ void dap_jtagtap_tdi_tdo_seq(uint8_t *DO, bool final_tms, const uint8_t *TMS,
 			*p++ = transfers;
 			for (int i = 0; i < transfers; i++) {
 				*p++ = 1 | ((DO) ? DAP_JTAG_TDO_CAPTURE : 0) |
-					((TMS[i / 8] & (1 << (i & 7))) ? DAP_JTAG_TMS : 0);
+					((TMS[i >> 3] & (1 << (i & 7))) ? DAP_JTAG_TMS : 0);
 				if (DI)
-					*p++ = (DI[i / 8] & (1 << (i & 7))) ? 1 : 0;
+					*p++ = (DI[i >> 3] & (1 << (i & 7))) ? 1 : 0;
 				else
 					*p++ = 1;
 			}
@@ -733,9 +736,9 @@ void dap_jtagtap_tdi_tdo_seq(uint8_t *DO, bool final_tms, const uint8_t *TMS,
 			if (DO) {
 				for (int i = 0; i < transfers; i++) {
 					if (buf[i + 1])
-						DO[i / 8] |= (1 << (i & 7));
+						DO[i >> 3] |= (1 << (i & 7));
 					else
-						DO[i / 8] &= ~(1 << (i & 7));
+						DO[i >> 3] &= ~(1 << (i & 7));
 				}
 			}
 			ticks -= transfers;
@@ -797,8 +800,9 @@ bool dap_sequence_test(void)
 {
 	uint8_t buf[4] = {
 		ID_DAP_SWD_SEQUENCE,
-		1,
-		0 /* one idle cycle */
+		0x1,
+		0x81, /* Read one bit */
+		0     /* one idle cycle */
 	};
 	dbg_dap_cmd(buf, sizeof(buf), 3);
 	return (buf[0] == DAP_OK);
