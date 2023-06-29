@@ -1,10 +1,9 @@
 ifneq ($(V), 1)
 MFLAGS += --no-print-dir
 Q := @
+RM := rm -f
 endif
 
-PC_HOSTED =
-NO_LIBOPENCM3 =
 ifeq ($(PROBE_HOST), hosted)
 	PC_HOSTED = true
 	NO_LIBOPENCM3 = true

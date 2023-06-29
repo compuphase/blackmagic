@@ -6,6 +6,7 @@ ENABLE_DEBUG ?=
 ifneq ($(V), 1)
 MAKEFLAGS += --no-print-dir
 Q := @
+RM := rm -f
 endif
 
 CFLAGS += -Wall -Wextra -Werror -Wno-char-subscripts \

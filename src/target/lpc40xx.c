@@ -156,7 +156,7 @@ static bool lpc40xx_enter_flash_mode(target *const t)
 
 static bool lpc40xx_exit_flash_mode(target *const t)
 {
-	const lpc40xx_priv *priv = (const struct lpc40xx_priv*)t->target_storage;
+	const struct lpc40xx_priv *priv = (const struct lpc40xx_priv*)t->target_storage;
 	/* Restore the memory mapping and MPU state (in that order!) */
 	target_mem_write32(t, LPC40xx_MEMMAP, priv->memmap_state);
 	target_mem_write32(t, LPC40xx_MPU_CTRL, priv->mpu_ctrl_state);
