@@ -79,6 +79,7 @@ int adiv5_swdp_scan(uint32_t targetid)
     ADIv5_DP_t *initial_dp = &idp;
     if (swdptap_init(initial_dp))
         return -1;
+    platform_target_clk_output_enable(true);
     /* DORMANT-> SWD sequence*/
     initial_dp->seq_out(0xFFFFFFFF, 32);
     initial_dp->seq_out(0xFFFFFFFF, 32);

@@ -21,7 +21,7 @@
 #define __PLATFORM_SUPPORT_H
 
 #ifndef __GENERAL_H
-#	error "Include 'general.h' instead"
+#   error "Include 'general.h' instead"
 #endif
 
 #include "target.h"
@@ -34,10 +34,10 @@ void platform_init(void);
 
 typedef struct platform_timeout platform_timeout;
 void platform_timeout_set(platform_timeout *t, uint32_t ms);
-bool platform_timeout_is_expired(platform_timeout *t);
+bool platform_timeout_is_expired(const platform_timeout *t);
 void platform_delay(uint32_t ms);
 
-#define POWER_CONFLICT_THRESHOLD	5 /* in 0.1V, so 5 stands for 0.5V */
+#define POWER_CONFLICT_THRESHOLD    5 /* in 0.1V, so 5 stands for 0.5V */
 extern bool connect_assert_srst;
 uint32_t platform_target_voltage_sense(void);
 const char *platform_target_voltage(void);
@@ -49,6 +49,8 @@ void platform_target_set_power(bool power);
 void platform_request_boot(void);
 void platform_max_frequency_set(uint32_t frequency);
 uint32_t platform_max_frequency_get(void);
+
+void platform_target_clk_output_enable(bool enable);
 
 #endif
 

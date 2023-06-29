@@ -65,7 +65,9 @@
 #define REMOTE_START        'A'
 #define REMOTE_TDITDO_TMS   'D'
 #define REMOTE_TDITDO_NOTMS 'd'
+#define REMOTE_CYCLE        'c'
 #define REMOTE_IN_PAR       'I'
+#define REMOTE_TARGET_CLK_OE 'E'
 #define REMOTE_FREQ_SET     'F'
 #define REMOTE_FREQ_GET     'f'
 #define REMOTE_IN           'i'
@@ -90,7 +92,7 @@
 
 /* High level protocol elements */
 #define REMOTE_HL_CHECK     'C'
-#define REMOTE_HL_PACKET 'H'
+#define REMOTE_HL_PACKET    'H'
 #define REMOTE_DP_READ      'd'
 #define REMOTE_LOW_ACCESS   'L'
 #define REMOTE_AP_READ      'a'
@@ -112,6 +114,8 @@
 #define REMOTE_FREQ_GET_STR (char []){ REMOTE_SOM, REMOTE_GEN_PACKET, REMOTE_FREQ_GET, REMOTE_EOM, 0 }
 #define REMOTE_PWR_SET_STR (char []){ REMOTE_SOM, REMOTE_GEN_PACKET, REMOTE_PWR_SET, '%', 'c', REMOTE_EOM, 0 }
 #define REMOTE_PWR_GET_STR (char []){ REMOTE_SOM, REMOTE_GEN_PACKET, REMOTE_PWR_GET, REMOTE_EOM, 0 }
+
+#define REMOTE_TARGET_CLK_OE_STR (char[]){ REMOTE_SOM, REMOTE_GEN_PACKET, REMOTE_TARGET_CLK_OE, '%', 'c', REMOTE_EOM, 0 }
 
 /* SWDP protocol elements */
 #define REMOTE_SWDP_PACKET 'S'
@@ -140,7 +144,7 @@
                                            '%','0','2','x','%','x',REMOTE_EOM, 0 }
 
 #define REMOTE_JTAG_TDIDO_STR (char []){ REMOTE_SOM, REMOTE_JTAG_PACKET, '%', 'c', \
-      '%','0','2','x','%','l', 'x', REMOTE_EOM, 0 }
+                                           '%','0','2','x','%','l', 'x', REMOTE_EOM, 0 }
 
 #define REMOTE_JTAG_NEXT (char []){ REMOTE_SOM, REMOTE_JTAG_PACKET, REMOTE_NEXT, \
                                        '%','c','%','c',REMOTE_EOM, 0 }
@@ -150,32 +154,32 @@
 #define CHR(x) '%', 'c'
 
 #define REMOTE_JTAG_ADD_DEV_STR (char []){ REMOTE_SOM, REMOTE_JTAG_PACKET,\
-			REMOTE_ADD_JTAG_DEV,											\
-			'%','0','2','x', /* index */								\
-			'%','0','2','x', /* dr_prescan */							\
-			'%','0','2','x', /*	dr_postscan	*/							\
-			'%','0','2','x', /* ir_len */								\
-			'%','0','2','x', /* ir_prescan */							\
-			'%','0','2','x', /* ir_postscan */							\
-			HEX_U32(current_ir), /* current_ir */						\
-			REMOTE_EOM, 0}
+            REMOTE_ADD_JTAG_DEV,                                            \
+            '%','0','2','x', /* index */                                \
+            '%','0','2','x', /* dr_prescan */                           \
+            '%','0','2','x', /* dr_postscan */                          \
+            '%','0','2','x', /* ir_len */                               \
+            '%','0','2','x', /* ir_prescan */                           \
+            '%','0','2','x', /* ir_postscan */                          \
+            HEX_U32(current_ir), /* current_ir */                       \
+            REMOTE_EOM, 0}
 
 #define REMOTE_HL_CHECK_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_HL_CHECK, REMOTE_EOM, 0 }
 #define REMOTE_DP_READ_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_DP_READ, \
-			'%','0', '2', 'x', 'f', 'f', '%', '0', '4', 'x', REMOTE_EOM, 0 }
+            '%','0', '2', 'x', 'f', 'f', '%', '0', '4', 'x', REMOTE_EOM, 0 }
 #define REMOTE_LOW_ACCESS_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_LOW_ACCESS, \
-			'%','0', '2', 'x', '%','0', '2', 'x', '%', '0', '4', 'x', HEX_U32(csw), REMOTE_EOM, 0 }
+            '%','0', '2', 'x', '%','0', '2', 'x', '%', '0', '4', 'x', HEX_U32(csw), REMOTE_EOM, 0 }
 #define REMOTE_AP_READ_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_AP_READ, \
-			'%','0', '2', 'x', '%','0','2','x', '%', '0', '4', 'x', REMOTE_EOM, 0 }
+            '%','0', '2', 'x', '%','0','2','x', '%', '0', '4', 'x', REMOTE_EOM, 0 }
 #define REMOTE_AP_WRITE_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_AP_WRITE, \
-			'%','0', '2', 'x', '%','0','2','x', '%', '0', '4', 'x', HEX_U32(csw), REMOTE_EOM, 0 }
+            '%','0', '2', 'x', '%','0','2','x', '%', '0', '4', 'x', HEX_U32(csw), REMOTE_EOM, 0 }
 #define REMOTE_AP_MEM_READ_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_AP_MEM_READ, \
-			'%','0', '2', 'x', '%','0','2','x',HEX_U32(csw), HEX_U32(address), HEX_U32(count), \
-			REMOTE_EOM, 0 }
+            '%','0', '2', 'x', '%','0','2','x',HEX_U32(csw), HEX_U32(address), HEX_U32(count), \
+            REMOTE_EOM, 0 }
 #define REMOTE_AP_MEM_WRITE_SIZED_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_AP_MEM_WRITE_SIZED, \
-			'%','0', '2', 'x', '%', '0', '2', 'x', HEX_U32(csw), '%', '0', '2', 'x', HEX_U32(address), HEX_U32(count), 0}
+            '%','0', '2', 'x', '%', '0', '2', 'x', HEX_U32(csw), '%', '0', '2', 'x', HEX_U32(address), HEX_U32(count), 0}
 #define REMOTE_MEM_WRITE_SIZED_STR (char []){ REMOTE_SOM, REMOTE_HL_PACKET, REMOTE_AP_MEM_WRITE_SIZED, \
-			'%','0', '2', 'x', '%','0','2','x', HEX_U32(address), HEX_U32(count), 0}
+            '%','0', '2', 'x', '%','0','2','x', HEX_U32(address), HEX_U32(count), 0}
 
 uint64_t remotehston(uint32_t limit, char *s);
 void remotePacketProcess(unsigned int i, char *packet);

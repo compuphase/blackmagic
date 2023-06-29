@@ -163,21 +163,25 @@ uint32_t remote_max_frequency_get(void)
 
 const char *remote_target_voltage(void)
 {
-	static uint8_t construct[REMOTE_MAX_MSG_SIZE];
-	int s;
-
-	s = snprintf((char *)construct, REMOTE_MAX_MSG_SIZE," %s",
-				 REMOTE_VOLTAGE_STR);
-	platform_buffer_write(construct, s);
-
-	s = platform_buffer_read(construct, REMOTE_MAX_MSG_SIZE);
-
-	if ((s < 1) || (construct[0] == REMOTE_RESP_ERR)) {
-      DEBUG_WARN("platform_target_voltage failed, error %s\n",
-			  s ? (char *)&(construct[1]) : "unknown");
-      exit(- 1);
+	static char construct[REMOTE_MAX_MSG_SIZE];
+	int s = snprintf(construct, REMOTE_MAX_MSG_SIZE," %s", REMOTE_VOLTAGE_STR);
+	platform_buffer_write((uint8_t*)construct, s);
+	s = platform_buffer_read((uint8_t*)construct, REMOTE_MAX_MSG_SIZE);
+	if (s < 1 || construct[0] == REMOTE_RESP_ERR) {
+      DEBUG_WARN("platform_target_voltage failed, error %s\n", s ? &(construct[1]) : "unknown");
+      exit(-1);
     }
-	return (char *)&construct[1];
+	return &construct[1];
+}
+
+void remote_target_clk_output_enable(const bool enable)
+{
+	char buffer[REMOTE_MAX_MSG_SIZE];
+	int length = snprintf(buffer, REMOTE_MAX_MSG_SIZE, REMOTE_TARGET_CLK_OE_STR, enable ? '1' : '0');
+	platform_buffer_write((uint8_t *)buffer, length);
+	length = platform_buffer_read((uint8_t *)buffer, REMOTE_MAX_MSG_SIZE);
+	if (length < 1 || buffer[0] == REMOTE_RESP_ERR)
+		DEBUG_WARN("remote_target_clk_output_enable failed, error %s\n", length ? buffer + 1 : "unknown");
 }
 
 static uint32_t remote_adiv5_dp_read(ADIv5_DP_t *dp, uint16_t addr)

@@ -173,9 +173,12 @@ target *target_attach(target *t, struct target_controller *tc)
         t->tc->destroy_callback(t->tc, t);
 
     t->tc = tc;
+    platform_target_clk_output_enable(true);
 
-    if (!t->attach(t))
+    if (t->attach && !t->attach(t)) {
+        platform_target_clk_output_enable(false);
         return NULL;
+    }
 
     t->attached = true;
     return t;
@@ -402,7 +405,9 @@ bool target_flash_done_buffered(struct target_flash *f)
 /* Wrapper functions */
 void target_detach(target *t)
 {
-    t->detach(t);
+    if (t->detach)
+        t->detach(t);
+    platform_target_clk_output_enable(false);
     t->attached = false;
 #if PC_HOSTED == 1
     platform_buffer_flush();
@@ -416,7 +421,10 @@ bool target_check_error(target *t) {
         return false;
 }
 
-bool target_attached(target *t) { return t->attached; }
+bool target_attached(target *t)
+{
+    return t->attached; 
+}
 
 /* Memory access functions */
 int target_mem_read(target *t, void *dest, target_addr src, size_t len)
