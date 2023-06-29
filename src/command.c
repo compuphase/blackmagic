@@ -216,7 +216,7 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
     }
 
     cmd_targets(NULL, 0, NULL);
-	platform_target_clk_output_enable(false);
+    platform_target_clk_output_enable(false);
     morse(NULL, false);
     return true;
 }
@@ -259,7 +259,7 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
     }
 
     cmd_targets(NULL, 0, NULL);
-	platform_target_clk_output_enable(false);
+    platform_target_clk_output_enable(false);
     morse(NULL, false);
     return true;
 
@@ -289,7 +289,7 @@ bool cmd_frequency(target *t, int argc, char **argv)
     if (freq == FREQ_FIXED)
         gdb_outf("SWJ freq fixed\n");
     else
-        gdb_outf("Max. SWJ freq = %" PRIu32 "Hz\n", freq);
+        gdb_outf("SWJ freq = %" PRIu32 " kHz\n", freq/1000);
     return true;
 }
 

@@ -67,25 +67,25 @@ uint32_t platform_time_ms(void)
     return time_ms;
 }
 
-/* Assume some USED_SWD_CYCLES per clock
- * and  CYCLES_PER_CNT Cycles per delay loop cnt with 2 delay loops per clock
+/* Assume CYCLES_PER_BIT CPU cycles per SWD clock cycle (1 bit pushed out)
+ * Assume DELAY_LOOP_CYCLES cycles per delay loop, with 2 delay loops per SWD clock
  */
 
 /* Values for STM32F103 at 72 MHz */
-#define USED_SWD_CYCLES 22
-#define CYCLES_PER_CNT 10
+#define CYCLES_PER_BIT      16
+#define DELAY_LOOP_CYCLES   8
 void platform_max_frequency_set(uint32_t freq)
 {
-    if (USED_SWD_CYCLES * freq >= rcc_ahb_frequency) {
+    if (CYCLES_PER_BIT * freq >= rcc_ahb_frequency) {
         swd_delay_cnt = 0;
         return;
     }
-    int divisor = (rcc_ahb_frequency - USED_SWD_CYCLES * freq) / 2;
+    int divisor = (rcc_ahb_frequency - CYCLES_PER_BIT * freq) / 2;
     /* divide & round upwards */
-    swd_delay_cnt = (divisor + (CYCLES_PER_CNT * freq - 1)) / (CYCLES_PER_CNT * freq);
+    swd_delay_cnt = (divisor + (DELAY_LOOP_CYCLES * freq - 1)) / (DELAY_LOOP_CYCLES * freq);
 }
 
 uint32_t platform_max_frequency_get(void)
 {
-    return rcc_ahb_frequency / (USED_SWD_CYCLES + 2 * CYCLES_PER_CNT * swd_delay_cnt);
+    return rcc_ahb_frequency / (CYCLES_PER_BIT + 2 * DELAY_LOOP_CYCLES * swd_delay_cnt);
 }
