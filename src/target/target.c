@@ -423,7 +423,7 @@ bool target_check_error(target *t) {
 
 bool target_attached(target *t)
 {
-    return t->attached; 
+    return t->attached;
 }
 
 /* Memory access functions */
@@ -638,9 +638,9 @@ void target_command_help(target *t)
 int target_command(target *t, int argc, const char *argv[])
 {
     for (struct target_command_s *tc = t->commands; tc; tc = tc->next)
-        for(const struct command_s *c = tc->cmds; c->cmd; c++)
-            if(!strncmp(argv[0], c->cmd, strlen(argv[0])))
-                return (c->handler(t, argc, argv)) ? 0 : 1;
+        for (const struct command_s *c = tc->cmds; c->cmd; c++)
+            if (strncmp(argv[0], c->cmd, strlen(argv[0])) == 0)
+                return !c->handler(t, argc, argv);  /* return 0 for OK and 1 for Error */
     return -1;
 }
 

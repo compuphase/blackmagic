@@ -62,8 +62,9 @@ bool firmware_dp_low_write(ADIv5_DP_t *dp, uint16_t addr, const uint32_t data)
 }
 
 /* Try first the dormant to SWD procedure.
- * If target id given, scan DPs 0 .. 15 on that device and return.
- * Otherwise
+ * If no target id is given, an attempt is made to read the id of the attached
+ * device.
+ * Then proceed to scan DPs 0 .. 15 on that device and return.
  */
 int adiv5_swdp_scan(uint32_t targetid)
 {

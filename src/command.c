@@ -35,18 +35,22 @@
 #include "serialno.h"
 #include "jtagtap.h"
 
+#ifdef ENABLE_RTT
+#   include "rtt.h"
+#endif
 #ifdef PLATFORM_HAS_TRACESWO
 #   include "traceswo.h"
 #endif
 
-static bool cmd_version(target *t, int argc, char **argv);
-static bool cmd_help(target *t, int argc, char **argv);
+static bool cmd_version(target *t, int argc, const char **argv);
+static bool cmd_help(target *t, int argc, const char **argv);
 
-static bool cmd_jtag_scan(target *t, int argc, char **argv);
-static bool cmd_swdp_scan(target *t, int argc, char **argv);
-static bool cmd_frequency(target *t, int argc, char **argv);
-static bool cmd_targets(target *t, int argc, char **argv);
-static bool cmd_morse(target *t, int argc, char **argv);
+static bool cmd_jtag_scan(target *t, int argc, const char **argv);
+static bool cmd_swdp_scan(target *t, int argc, const char **argv);
+static bool cmd_auto_scan(target *t, int argc, const char **argv);
+static bool cmd_frequency(target *t, int argc, const char **argv);
+static bool cmd_targets(target *t, int argc, const char **argv);
+static bool cmd_morse(target *t, int argc, const char **argv);
 static bool cmd_halt_timeout(target *t, int argc, const char **argv);
 static bool cmd_connect_srst(target *t, int argc, const char **argv);
 static bool cmd_hard_srst(target *t, int argc, const char **argv);
@@ -58,36 +62,43 @@ static bool cmd_target_power(target *t, int argc, const char **argv);
 static bool cmd_traceswo(target *t, int argc, const char **argv);
 #endif
 static bool cmd_heapinfo(target *t, int argc, const char **argv);
+#ifdef ENABLE_RTT
+static bool cmd_rtt(target *t, int argc, const char **argv);
+#endif
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
 
 const struct command_s cmd_list[] = {
-    {"version", (cmd_handler)cmd_version, "Display firmware version info"},
-    {"help", (cmd_handler)cmd_help, "Display help for monitor commands"},
-    {"jtag_scan", (cmd_handler)cmd_jtag_scan, "Scan JTAG chain for devices" },
-    {"swdp_scan", (cmd_handler)cmd_swdp_scan, "Scan SW-DP for devices" },
-    {"frequency", (cmd_handler)cmd_frequency, "set minimum high and low times" },
-    {"targets", (cmd_handler)cmd_targets, "Display list of available targets" },
-    {"morse", (cmd_handler)cmd_morse, "Display morse error message" },
-    {"halt_timeout", (cmd_handler)cmd_halt_timeout, "Timeout (ms) to wait until Cortex-M is halted: (Default 2000)" },
-    {"connect_srst", (cmd_handler)cmd_connect_srst, "Configure connect under SRST: (enable|disable)" },
-    {"hard_srst", (cmd_handler)cmd_hard_srst, "Force a pulse on the hard SRST line - disconnects target" },
+    {"version", cmd_version, "Display firmware version info"},
+    {"help", cmd_help, "Display help for monitor commands"},
+    {"jtag_scan", cmd_jtag_scan, "Scan JTAG chain for devices" },
+    {"swdp_scan", cmd_swdp_scan, "Scan SW-DP for devices" },
+    {"auto_scan", cmd_auto_scan, "Automatically scan all chain types for devices"},
+    {"frequency", cmd_frequency, "set minimum high and low times" },
+    {"targets", cmd_targets, "Display list of available targets" },
+    {"morse", cmd_morse, "Display morse error message" },
+    {"halt_timeout", cmd_halt_timeout, "Timeout (ms) to wait until Cortex-M is halted: (Default 2000)" },
+    {"connect_srst", cmd_connect_srst, "Configure connect under SRST: (enable|disable)" },
+    {"hard_srst", cmd_hard_srst, "Force a pulse on the hard SRST line - disconnects target" },
     {"tdi_low_reset", cmd_tdi_low_reset,
         "Pulse nRST with TDI set low to attempt to wake certain targets up (eg LPC82x)"},
 #ifdef PLATFORM_HAS_POWER_SWITCH
-    {"tpwr", (cmd_handler)cmd_target_power, "Supplies power to the target: (enable|disable)"},
+    {"tpwr", cmd_target_power, "Supplies power to the target: (enable|disable)"},
+#endif
+#ifdef ENABLE_RTT
+    {"rtt", cmd_rtt, "enable|disable|status|channel 0..15|ident (str)|cblock|ram|poll maxms minms maxerr"},
 #endif
 #ifdef PLATFORM_HAS_TRACESWO
 #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
-    {"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode channel ...)" },
+    {"traceswo", cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode channel ...)" },
 #else
-    {"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode: (decode channel ...)" },
+    {"traceswo", cmd_traceswo, "Start trace capture, Manchester mode: (decode channel ...)" },
 #endif
 #endif
-    {"heapinfo", (cmd_handler)cmd_heapinfo, "Set semihosting heapinfo" },
+    {"heapinfo", cmd_heapinfo, "Set semihosting heapinfo" },
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
-    {"debug_bmp", (cmd_handler)cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
+    {"debug_bmp", cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
 #endif
     {NULL, NULL, NULL}
 };
@@ -100,40 +111,52 @@ unsigned cortexm_wait_timeout = 2000; /* Timeout to wait for Cortex to react on 
 
 int command_process(target *t, char *cmd)
 {
-    const struct command_s *c;
-    int argc = 1;
-    const char **argv;
-    const char *part;
+    while (*cmd && *cmd <= ' ')
+        cmd++;      /* skip leading whitespace (if any) */
+    if (!*cmd)
+        return -1;  /* nothing in the string, bail out */
 
-    /* Initial estimate for argc */
-    for(char *s = cmd; *s; s++)
-        if((*s == ' ') || (*s == '\t')) argc++;
+    /* count tokens in the string */
+    size_t argc = 1;/* start at 1, because we know there is something in the string */
+    char *s = cmd;
+    while (*s) {
+        if (*s && *s <= ' ') {
+            /* skipped over the argument, check if more follows */
+            while (*s && *s <= ' ')
+                s++;
+            if (*s > ' ')
+                argc++; /* more text follows whitespace -> another argument */
+        } else {
+            s++;
+        }
+    }
 
-    argv = alloca(sizeof(const char *) * argc);
+    const char **argv = alloca(sizeof(const char*) * argc);
 
-    /* Tokenize cmd to find argv */
+    /* Tokenize cmd to fill argv */
     argc = 0;
-    for (part = strtok(cmd, " \t"); part; part = strtok(NULL, " \t"))
+    for (const char *part = strtok(cmd, " \t"); part; part = strtok(NULL, " \t"))
         argv[argc++] = part;
 
     /* Look for match and call handler */
-    for(c = cmd_list; c->cmd; c++) {
+    for(const struct command_s *c = cmd_list; c->cmd; c++) {
         /* Accept a partial match as GDB does.
          * So 'mon ver' will match 'monitor version'
+         * Also note that the command "handler" functions return a bool, but
+         * this function returns 0 for OK, 1 for Error and -1 for 'unrecognized'
          */
-        if ((argc == 0) || !strncmp(argv[0], c->cmd, strlen(argv[0])))
+        if (strncmp(argv[0], c->cmd, strlen(argv[0])) == 0)
             return !c->handler(t, argc, argv);
     }
 
     if (!t)
-        return -1;
-
+        return -1;  /* not a general command, and no target attached -> unrecognized */
     return target_command(t, argc, argv);
 }
 
 #define BOARD_IDENT "Black Magic Probe" PLATFORM_IDENT FIRMWARE_VERSION
 
-bool cmd_version(target *t, int argc, char **argv)
+bool cmd_version(target *t, int argc, const char **argv)
 {
     (void)t;
     (void)argc;
@@ -153,26 +176,24 @@ bool cmd_version(target *t, int argc, char **argv)
     return true;
 }
 
-bool cmd_help(target *t, int argc, char **argv)
+bool cmd_help(target *t, int argc, const char **argv)
 {
     (void)argc;
     (void)argv;
-    const struct command_s *c;
 
     if (!t || t->tc->destroy_callback) {
         gdb_out("General commands:\n");
-        for(c = cmd_list; c->cmd; c++)
+        for (const struct command_s *c = cmd_list; c->cmd; c++)
             gdb_outf("\t%s -- %s\n", c->cmd, c->help);
+        if (!t)
+            return true;
     }
-    if (!t)
-        return -1;
 
     target_command_help(t);
-
     return true;
 }
 
-static bool cmd_jtag_scan(target *t, int argc, char **argv)
+static bool cmd_jtag_scan(target *t, int argc, const char **argv)
 {
     (void)t;
     uint8_t irlens[argc];
@@ -190,7 +211,7 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
     if(connect_assert_srst)
         platform_srst_set_val(true); /* will be deasserted after attach */
 
-    int devs = -1;
+    int devs = 0;
     volatile struct exception e;
     TRY_CATCH (e, EXCEPTION_ALL) {
 #if PC_HOSTED == 1
@@ -221,19 +242,19 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
     return true;
 }
 
-bool cmd_swdp_scan(target *t, int argc, char **argv)
+bool cmd_swdp_scan(target *t, int argc, const char **argv)
 {
     (void)t;
     volatile uint32_t targetid = 0;
     if (argc > 1)
         targetid  = strtol(argv[1], NULL, 0);
+
     if (platform_target_voltage())
         gdb_outf("Target voltage: %s\n", platform_target_voltage());
-
-    if(connect_assert_srst)
+    if (connect_assert_srst)
         platform_srst_set_val(true); /* will be deasserted after attach */
 
-    int devs = -1;
+    int devs = 0;
     volatile struct exception e;
     TRY_CATCH (e, EXCEPTION_ALL) {
 #if PC_HOSTED == 1
@@ -241,7 +262,7 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 #else
         devs = adiv5_swdp_scan(targetid);
 #endif
-        }
+    }
     switch (e.type) {
     case EXCEPTION_TIMEOUT:
         gdb_outf("Timeout during scan. Is target stuck in WFI?\n");
@@ -251,7 +272,7 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
         break;
     }
 
-    if(devs == 0) {
+    if (devs == 0) {
         platform_target_clk_output_enable(false);
         platform_srst_set_val(false);
         gdb_out("SW-DP scan failed!\n");
@@ -262,10 +283,64 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
     platform_target_clk_output_enable(false);
     morse(NULL, false);
     return true;
-
 }
 
-bool cmd_frequency(target *t, int argc, char **argv)
+bool cmd_auto_scan(target *t, int argc, const char **argv)
+{
+    (void)t;
+    (void)argc;
+    (void)argv;
+
+    if (platform_target_voltage())
+        gdb_outf("Target voltage: %s\n", platform_target_voltage());
+    if (connect_assert_srst)
+        platform_srst_set_val(true); /* will be deasserted after attach */
+
+    uint32_t devs = 0;
+    volatile struct exception e;
+    TRY_CATCH (e, EXCEPTION_ALL) {
+#if PC_HOSTED == 1
+        devs = platform_jtag_scan(NULL);
+#else
+        devs = jtag_scan(NULL);
+#endif
+        if (devs > 0)
+            break;
+        gdb_out("JTAG scan found no devices, trying SWD!\n");
+
+#if PC_HOSTED == 1
+        devs = platform_adiv5_swdp_scan(0);
+#else
+        devs = adiv5_swdp_scan(0);
+#endif
+        if (devs > 0)
+            break;
+
+        gdb_out("SW-DP scan found no devices.\n");
+    }
+    switch (e.type) {
+    case EXCEPTION_TIMEOUT:
+        gdb_outf("Timeout during scan. Is target stuck in WFI?\n");
+        break;
+    case EXCEPTION_ERROR:
+        gdb_outf("Exception: %s\n", e.msg);
+        break;
+    }
+
+    if (devs == 0) {
+        platform_target_clk_output_enable(false);
+        platform_srst_set_val(false);
+        gdb_out("auto scan failed!\n");
+        return false;
+    }
+
+    cmd_targets(NULL, 0, NULL);
+    platform_target_clk_output_enable(false);
+    morse(NULL, false);
+    return true;
+}
+
+bool cmd_frequency(target *t, int argc, const char **argv)
 {
     (void)t;
     if (argc == 2) {
@@ -310,7 +385,7 @@ static void display_target(int i, target *t, void *context)
     }
 }
 
-bool cmd_targets(target *t, int argc, char **argv)
+bool cmd_targets(target *t, int argc, const char **argv)
 {
     (void)t;
     (void)argc;
@@ -325,7 +400,7 @@ bool cmd_targets(target *t, int argc, char **argv)
     return true;
 }
 
-bool cmd_morse(target *t, int argc, char **argv)
+bool cmd_morse(target *t, int argc, const char **argv)
 {
     (void)t;
     (void)argc;
@@ -333,24 +408,24 @@ bool cmd_morse(target *t, int argc, char **argv)
     if(morse_msg) {
         gdb_outf("%s\n", morse_msg);
         DEBUG_WARN("%s\n", morse_msg);
+    } else {
+        gdb_out("No message\n");
     }
     return true;
 }
 
-bool parse_enable_or_disable(const char *s, bool *out) {
-    if (strlen(s) == 0) {
-        gdb_outf("'enable' or 'disable' argument must be provided\n");
-        return false;
-    } else if (!strncmp(s, "enable", strlen(s))) {
+bool parse_enable_or_disable(const char *s, bool *out)
+{
+    size_t len = strlen(s);
+    if (len && strncmp(s, "enable", len) == 0) {
         *out = true;
-        return true;
-    } else if (!strncmp(s, "disable", strlen(s))) {
+    } else if (len && strncmp(s, "disable", len) == 0) {
         *out = false;
-        return true;
     } else {
-        gdb_outf("Argument '%s' not recognized as 'enable' or 'disable'\n", s);
+        gdb_out("'enable' or 'disable' argument must be provided\n");
         return false;
     }
+    return true;
 }
 
 static bool cmd_connect_srst(target *t, int argc, const char **argv)
@@ -360,17 +435,14 @@ static bool cmd_connect_srst(target *t, int argc, const char **argv)
     if (argc == 1) {
         print_status = true;
     } else if (argc == 2) {
-        if (parse_enable_or_disable(argv[1], &connect_assert_srst)) {
+        if (parse_enable_or_disable(argv[1], &connect_assert_srst))
             print_status = true;
-        }
     } else {
         gdb_outf("Unrecognized command format\n");
     }
 
-    if (print_status) {
-        gdb_outf("Assert SRST during connect: %s\n",
-             connect_assert_srst ? "enabled" : "disabled");
-    }
+    if (print_status)
+        gdb_outf("Assert SRST during connect: %s\n", connect_assert_srst ? "enabled" : "disabled");
     return true;
 }
 
@@ -379,8 +451,7 @@ static bool cmd_halt_timeout(target *t, int argc, const char **argv)
     (void)t;
     if (argc > 1)
         cortexm_wait_timeout = atol(argv[1]);
-    gdb_outf("Cortex-M timeout to wait for device haltes: %d\n",
-                 cortexm_wait_timeout);
+    gdb_outf("Cortex-M timeout to wait for device to halt: %d\n", cortexm_wait_timeout);
     return true;
 }
 
@@ -410,8 +481,7 @@ static bool cmd_target_power(target *t, int argc, const char **argv)
 {
     (void)t;
     if (argc == 1) {
-        gdb_outf("Target Power: %s\n",
-             platform_target_get_power() ? "enabled" : "disabled");
+        gdb_outf("Target Power: %s\n", platform_target_get_power() ? "enabled" : "disabled");
     } else if (argc == 2) {
         bool want_enable = false;
         if (parse_enable_or_disable(argv[1], &want_enable)) {
@@ -444,9 +514,10 @@ static bool cmd_traceswo(target *t, int argc, const char **argv)
     uint8_t decode_arg = 1;
 #if TRACESWO_PROTOCOL == 2
     /* argument: optional baud rate for async mode */
-    if ((argc > 1) && (*argv[1] >= '0') && (*argv[1] <= '9')) {
+    if (argc > 1 && argv[1][0] >= '0' && argv[1][0] <= '9') {
         baudrate = atoi(argv[1]);
-        if (baudrate == 0) baudrate = SWO_DEFAULT_BAUD;
+        if (baudrate == 0)
+            baudrate = SWO_DEFAULT_BAUD;
         decode_arg = 2;
     }
 #endif
@@ -455,27 +526,25 @@ static bool cmd_traceswo(target *t, int argc, const char **argv)
         swo_channelmask = 0xFFFFFFFF; /* decoding all channels */
         /* arguments: channels to decode */
         if (argc > decode_arg + 1) {
-            swo_channelmask = 0x0;
+            swo_channelmask = 0;
             for (int i = decode_arg+1; i < argc; i++) { /* create bitmask of channels to decode */
                 int channel = atoi(argv[i]);
-                if ((channel >= 0) && (channel <= 31))
-                    swo_channelmask |= (uint32_t)0x1 << channel;
+                if (channel >= 0 && channel < 32)
+                    swo_channelmask |= 1U << channel;
             }
         }
     }
-#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0) && defined(ENABLE_DEBUG)
-    if (debug_bmp) {
+
 #if TRACESWO_PROTOCOL == 2
-        gdb_outf("Baudrate: %lu ", baudrate);
+    gdb_outf("Baudrate: %lu ", baudrate);
 #endif
-        gdb_outf("Channel mask: ");
-        for (int8_t i=31;i>=0;i--) {
-            uint8_t bit = (swo_channelmask >> i) & 0x1;
-            gdb_outf("%u", bit);
-        }
-        gdb_outf("\n");
+    gdb_outf("Channel mask: ");
+    for (size_t i = 0; i < 32U; ++i) {
+        const uint32_t bit = (swo_channelmask >> (31U - i)) & 1U;
+        gdb_outf("%" PRIu32, bit);
     }
-#endif
+    gdb_outf("\n");
+
 #if TRACESWO_PROTOCOL == 2
     traceswo_init(baudrate, swo_channelmask);
 #else
@@ -511,8 +580,9 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv)
 #endif
 static bool cmd_heapinfo(target *t, int argc, const char **argv)
 {
-    if (t == NULL) gdb_out("not attached\n");
-    else if (argc == 5) {
+    if (t == NULL) {
+        gdb_out("not attached\n");
+    } else if (argc == 5) {
         target_addr heap_base = strtoul(argv[1], NULL, 16);
         target_addr heap_limit = strtoul(argv[2], NULL, 16);
         target_addr stack_base = strtoul(argv[3], NULL, 16);
@@ -520,6 +590,8 @@ static bool cmd_heapinfo(target *t, int argc, const char **argv)
         gdb_outf("heapinfo heap_base: %p heap_limit: %p stack_base: %p stack_limit: %p\n",
             heap_base, heap_limit, stack_base, stack_limit);
         target_set_heapinfo(t, heap_base, heap_limit, stack_base, stack_limit);
-    } else gdb_outf("heapinfo heap_base heap_limit stack_base stack_limit\n");
+    } else {
+        gdb_outf("heapinfo heap_base heap_limit stack_base stack_limit\n");
+    }
     return true;
 }
