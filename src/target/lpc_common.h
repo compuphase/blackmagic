@@ -80,6 +80,8 @@ struct lpc_flash {
 	uint32_t iap_msp;
 };
 
+size_t lpc_flash_size(uint32_t device_id, size_t default_size);
+size_t lpc_sram_size(uint32_t device_id, size_t default_size);
 struct lpc_flash *lpc_add_flash(target *t, target_addr addr, size_t length);
 enum iap_status lpc_iap_call(struct lpc_flash *f, void *result, enum iap_cmd cmd, ...);
 int lpc_flash_erase(struct target_flash *f, target_addr addr, size_t len);

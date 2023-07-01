@@ -123,8 +123,8 @@ struct target_s {
     uint16_t idcode;
     void *target_storage;
     union {
-        bool unsafe_enabled;
-        bool ke04_mode;
+        bool unsafe_enabled;    /* for Kinetis */
+        bool ke04_mode;         /* for Kinetis */
     };
 
     struct target_ram *ram;

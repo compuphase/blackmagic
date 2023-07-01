@@ -47,149 +47,170 @@
 #define FLASH_NUM_SECTOR 30U
 
 typedef struct iap_config {
-	uint32_t command;
-	uint32_t params[4];
+    uint32_t command;
+    uint32_t params[4];
 } iap_config_s;
 
 typedef struct __attribute__((aligned(4))) iap_frame {
-	/* The start of an IAP stack frame is the opcode we set as the return point. */
-	uint16_t opcode;
-	/* There's then a hidden alignment field here, followed by the IAP call setup */
-	iap_config_s config;
+    /* The start of an IAP stack frame is the opcode we set as the return point. */
+    uint16_t opcode;
+    /* There's then a hidden alignment field here, followed by the IAP call setup */
+    iap_config_s config;
 } iap_frame_s;
 
 typedef struct iap_result {
-	uint32_t return_code;
-	uint32_t values[4];
+    uint32_t return_code;
+    uint32_t values[4];
 } iap_result_s;
 
 struct lpc40xx_priv {
-	uint32_t mpu_ctrl_state;
-	uint32_t memmap_state;
+    uint32_t mpu_ctrl_state;
+    uint32_t memmap_state;
 };
 
 static void lpc40xx_extended_reset(target *t);
 static bool lpc40xx_enter_flash_mode(target *t);
 static bool lpc40xx_exit_flash_mode(target *t);
 //TODO static bool lpc40xx_mass_erase(target *t);
+static bool lpc40xx_read_uid(target *t, int argc, const char *argv[]);
+static bool lpc40xx_part_id(target *t, int argc, const char *argv[]);
 enum iap_status lpc40xx_iap_call(target *t, void *result, enum iap_cmd cmd, ...);
+
+static const struct command_s lpc40xx_cmd_list[] = {
+    {"readuid", lpc40xx_read_uid, "Read out the 16-byte UID."},
+    {"partid", lpc40xx_part_id, "Return the 32-bit part-id (aka device-id or chip-id)."},
+    {NULL, NULL, NULL}
+};
 
 static void lpc40xx_add_flash(target *t, uint32_t addr, size_t len, size_t erasesize, uint8_t base_sector)
 {
-	struct lpc_flash *flash = lpc_add_flash(t, addr, len);
-	flash->f.blocksize = erasesize;
-	flash->base_sector = base_sector;
-	flash->f.write = lpc_flash_write_magic_vect;
-	flash->iap_entry = IAP_ENTRYPOINT;
-	flash->iap_ram = IAP_RAM_BASE;
-	flash->iap_msp = IAP_RAM_BASE + MIN_RAM_SIZE - RAM_USAGE_FOR_IAP_ROUTINES;
+    struct lpc_flash *flash = lpc_add_flash(t, addr, len);
+    flash->f.blocksize = erasesize;
+    flash->base_sector = base_sector;
+    flash->f.write = lpc_flash_write_magic_vect;
+    flash->iap_entry = IAP_ENTRYPOINT;
+    flash->iap_ram = IAP_RAM_BASE;
+    flash->iap_msp = IAP_RAM_BASE + MIN_RAM_SIZE - RAM_USAGE_FOR_IAP_ROUTINES;
 }
 
 bool lpc40xx_probe(target *t)
 {
-	if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M4) {
-		/*
-		 * Now that we're sure it's a Cortex-M3, we need to halt the
-		 * target and make an IAP call to get the part number.
-		 * There appears to have no other method of reading the part number.
-		 */
-		target_halt_request(t);
+    if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M4) {
+        /*
+         * Now that we're sure it's a Cortex-M3, we need to halt the
+         * target and make an IAP call to get the part number.
+         * There appears to have no other method of reading the part number.
+         */
+        target_halt_request(t);
 
-		/* Allocate private storage so the flash mode entry/exit routines can save state */
-		struct lpc40xx_priv *priv = calloc(1, sizeof(*priv));
-		if (!priv) { /* calloc failed: heap exhaustion */
-			DEBUG_WARN("calloc: failed in %s\n", __func__);
-			return false;
-		}
-		t->target_storage = priv;
+        /* Allocate private storage so the flash mode entry/exit routines can save state */
+        struct lpc40xx_priv *priv = calloc(1, sizeof(*priv));
+        if (!priv) { /* calloc failed: heap exhaustion */
+            DEBUG_WARN("calloc: failed in %s\n", __func__);
+            return false;
+        }
+        t->target_storage = priv;
 
-		/* Prepare Flash mode */
-		lpc40xx_enter_flash_mode(t);
-		/* Read the Part ID */
-		iap_result_s result;
-		lpc40xx_iap_call(t, &result, IAP_CMD_PARTID);
-		/* Transition back to normal mode and resume the target */
-		lpc40xx_exit_flash_mode(t);
-		target_halt_resume(t, false);
+        /* Prepare Flash mode */
+        lpc40xx_enter_flash_mode(t);
+        /* Read the Part ID */
+        iap_result_s result;
+        lpc40xx_iap_call(t, &result, IAP_CMD_PARTID);
+        /* Transition back to normal mode and resume the target */
+        lpc40xx_exit_flash_mode(t);
+        target_halt_resume(t, false);
 
-		/*
-		 * If we got an error response, it cannot be a LPC40xx as the only response
-		 * a real device gives is IAP_STATUS_CMD_SUCCESS.
-		 */
-		if (result.return_code) {
-			free(priv);
-			t->target_storage = NULL;
-			return false;
-		}
+        /*
+         * If we got an error response, it cannot be a LPC40xx as the only response
+         * a real device gives is IAP_STATUS_CMD_SUCCESS.
+         */
+        if (result.return_code) {
+            free(priv);
+            t->target_storage = NULL;
+            return false;
+        }
 
-		switch (result.values[0]) {
-		case 0x481d3f47U: /* LPC4088 */
-		case 0x47193f47U: /* LPC4078 */
-		case 0x47191f43U: /* LPC4076 */
-		case 0x47011132U: /* LPC4074 */
-			t->driver = "LPC40xx";
-			t->extended_reset = lpc40xx_extended_reset;
-			//TODO t->mass_erase = lpc40xx_mass_erase;
-			t->enter_flash_mode = lpc40xx_enter_flash_mode;
-			t->exit_flash_mode = lpc40xx_exit_flash_mode;
-			target_add_ram(t, 0x10000000U, 0x10000U);
-			target_add_ram(t, 0x2007c000U, 0x4000U);
-			target_add_ram(t, 0x20080000U, 0x4000U);
-			lpc40xx_add_flash(t, 0x00000000U, 0x10000U, 0x1000U, 0);
-			lpc40xx_add_flash(t, 0x00010000U, 0x70000U, 0x8000U, 16);
-			return true;
-		}
-	}
-	return false;
+        size_t flash_size = lpc_flash_size(result.values[0], 0x80000);
+        size_t sram_size = lpc_sram_size(result.values[0], 0x18000);
+        switch (result.values[0]) {
+        case 0x47011132:  /* LPC4074 - M4 128K Flash 40K SRAM - UM10562 Rev 3 2014 Ch 38.7.11 Table 753 */
+        case 0x47191F43:  /* LPC4076 - M4 256K Flash 80K SRAM - UM10562 Rev 3 2014 Ch 38.7.11 Table 753 */
+        case 0x47193F47:  /* LPC4078 - M4 512K Flash 96K SRAM - UM10562 Rev 3 2014 Ch 38.7.11 Table 753 */
+        case 0x481D3F47:  /* LPC4088 - M4 512K Flash 96K SRAM - UM10562 Rev 3 2014 Ch 38.7.11 Table 753 */
+            t->driver = "LPC40xx";
+            t->extended_reset = lpc40xx_extended_reset;
+            //TODO t->mass_erase = lpc40xx_mass_erase;
+            t->enter_flash_mode = lpc40xx_enter_flash_mode;
+            t->exit_flash_mode = lpc40xx_exit_flash_mode;
+            if (sram_size <= 0x10000) {
+                target_add_ram(t, 0x10000000U, sram_size);
+            } else {
+                /* first main SRAM block is 64 KiB */
+                target_add_ram(t, 0x10000000U, 0x10000U);
+                /* two more 16 KiB blocks may be present (these are consecutive,
+                   and so they might be considered a single 32 KiB block) */
+                if (sram_size > 0x10000)
+                    target_add_ram(t, 0x2007C000, 0x4000);
+                if (sram_size > 0x14000)
+                    target_add_ram(t, 0x20080000, 0x4000);
+            }
+            /* first 64 KiB is in 4 KiB sectors */
+            lpc40xx_add_flash(t, 0x00000000, 0x10000, 0x1000, 0);
+            lpc40xx_add_flash(t, 0x00010000, flash_size - 0x10000, 0x8000, 16);
+            target_add_commands(t, lpc40xx_cmd_list, t->driver);
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool lpc40xx_enter_flash_mode(target *const t)
 {
-	struct lpc40xx_priv *priv = (struct lpc40xx_priv*)t->target_storage;
-	/* Disable the MPU, if enabled */
-	priv->mpu_ctrl_state = target_mem_read32(t, LPC40xx_MPU_CTRL);
-	target_mem_write32(t, LPC40xx_MPU_CTRL, 0);
-	/* And store the memory mapping state */
-	priv->memmap_state = target_mem_read32(t, LPC40xx_MEMMAP);
-	return true;
+    struct lpc40xx_priv *priv = (struct lpc40xx_priv*)t->target_storage;
+    /* Disable the MPU, if enabled */
+    priv->mpu_ctrl_state = target_mem_read32(t, LPC40xx_MPU_CTRL);
+    target_mem_write32(t, LPC40xx_MPU_CTRL, 0);
+    /* And store the memory mapping state */
+    priv->memmap_state = target_mem_read32(t, LPC40xx_MEMMAP);
+    return true;
 }
 
 static bool lpc40xx_exit_flash_mode(target *const t)
 {
-	const struct lpc40xx_priv *priv = (const struct lpc40xx_priv*)t->target_storage;
-	/* Restore the memory mapping and MPU state (in that order!) */
-	target_mem_write32(t, LPC40xx_MEMMAP, priv->memmap_state);
-	target_mem_write32(t, LPC40xx_MPU_CTRL, priv->mpu_ctrl_state);
-	return true;
+    const struct lpc40xx_priv *priv = (const struct lpc40xx_priv*)t->target_storage;
+    /* Restore the memory mapping and MPU state (in that order!) */
+    target_mem_write32(t, LPC40xx_MEMMAP, priv->memmap_state);
+    target_mem_write32(t, LPC40xx_MPU_CTRL, priv->mpu_ctrl_state);
+    return true;
 }
 
 #if 0 //TODO
 static bool lpc40xx_mass_erase(target *t)
 {
-	iap_result_s result;
-	lpc40xx_enter_flash_mode(t);
+    iap_result_s result;
+    lpc40xx_enter_flash_mode(t);
 
-	if (lpc40xx_iap_call(t, &result, IAP_CMD_PREPARE, 0, FLASH_NUM_SECTOR - 1U)) {
-		lpc40xx_exit_flash_mode(t);
-		DEBUG_WARN("lpc40xx_cmd_erase: prepare failed %" PRIu32 "\n", result.return_code);
-		return false;
-	}
+    if (lpc40xx_iap_call(t, &result, IAP_CMD_PREPARE, 0, FLASH_NUM_SECTOR - 1U)) {
+        lpc40xx_exit_flash_mode(t);
+        DEBUG_WARN("lpc40xx_cmd_erase: prepare failed %" PRIu32 "\n", result.return_code);
+        return false;
+    }
 
-	if (lpc40xx_iap_call(t, &result, IAP_CMD_ERASE, 0, FLASH_NUM_SECTOR - 1U, CPU_CLK_KHZ)) {
-		lpc40xx_exit_flash_mode(t);
-		DEBUG_WARN("lpc40xx_cmd_erase: erase failed %" PRIu32 "\n", result.return_code);
-		return false;
-	}
+    if (lpc40xx_iap_call(t, &result, IAP_CMD_ERASE, 0, FLASH_NUM_SECTOR - 1U, CPU_CLK_KHZ)) {
+        lpc40xx_exit_flash_mode(t);
+        DEBUG_WARN("lpc40xx_cmd_erase: erase failed %" PRIu32 "\n", result.return_code);
+        return false;
+    }
 
-	if (lpc40xx_iap_call(t, &result, IAP_CMD_BLANKCHECK, 0, FLASH_NUM_SECTOR - 1U)) {
-		lpc40xx_exit_flash_mode(t);
-		DEBUG_WARN("lpc40xx_cmd_erase: blankcheck failed %" PRIu32 "\n", result.return_code);
-		return false;
-	}
+    if (lpc40xx_iap_call(t, &result, IAP_CMD_BLANKCHECK, 0, FLASH_NUM_SECTOR - 1U)) {
+        lpc40xx_exit_flash_mode(t);
+        DEBUG_WARN("lpc40xx_cmd_erase: blankcheck failed %" PRIu32 "\n", result.return_code);
+        return false;
+    }
 
-	lpc40xx_exit_flash_mode(t);
-	tc_printf(t, "Erase OK.\n");
-	return true;
+    lpc40xx_exit_flash_mode(t);
+    tc_printf(t, "Erase OK.\n");
+    return true;
 }
 #endif
 
@@ -199,78 +220,112 @@ static bool lpc40xx_mass_erase(target *t)
  */
 static void lpc40xx_extended_reset(target *t)
 {
-	/*
-	 * Transition the memory map to user mode (if it wasn't already) to ensure
-	 * the correct environment is seen by the user
-	 * See §33.6 Debug memory re-mapping, pg655 of UM10360 for more details.
-	 */
-	target_mem_write32(t, LPC40xx_MEMMAP, 1);
+    /* Transition the memory map to user mode (if it wasn't already) to ensure
+     * the correct environment is seen by the user
+     * See Ch 33.6 Debug memory re-mapping, p.655 of UM10360 for more details.
+     */
+    target_mem_write32(t, LPC40xx_MEMMAP, 1);
+}
+
+static bool lpc40xx_read_uid(target *t, int argc, const char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    lpc40xx_enter_flash_mode(t);
+    iap_result_s result;
+    lpc40xx_iap_call(t, &result, IAP_CMD_READUID);
+    lpc40xx_exit_flash_mode(t);
+
+    tc_printf(t, "UID: 0x");
+    const uint8_t *uid = (const uint8_t*)&result.values[0];
+    for (uint32_t i = 0; i < 16; ++i)
+        tc_printf(t, "%02x", uid[i]);
+    tc_printf(t, "\n");
+    return true;
+}
+
+static bool lpc40xx_part_id(target *t, int argc, const char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    lpc40xx_enter_flash_mode(t);
+    iap_result_s result;
+    lpc40xx_iap_call(t, &result, IAP_CMD_PARTID);
+    lpc40xx_exit_flash_mode(t);
+
+    tc_printf(t, "Part ID: 0x%08x\n", result.values[0]);
+    return true;
 }
 
 static size_t lpc40xx_iap_params(enum iap_cmd cmd)
 {
-	switch (cmd) {
-	case IAP_CMD_PREPARE:
-	case IAP_CMD_BLANKCHECK:
-		return 2U;
-	case IAP_CMD_ERASE:
-		return 3U;
-	default:
-		return 0U;
-	}
+    switch (cmd) {
+    case IAP_CMD_PREPARE:
+    case IAP_CMD_BLANKCHECK:
+        return 2U;
+    case IAP_CMD_ERASE:
+        return 3U;
+    default:
+        return 0U;
+    }
 }
 
 enum iap_status lpc40xx_iap_call(target *t, void *result, enum iap_cmd cmd, ...)
 {
-	/* Set up our IAP frame with the break opcode and command to run */
-	iap_frame_s frame = {
-		.opcode = ARM_THUMB_BREAKPOINT,
-		{.command = cmd},
-	};
+    /* Set up our IAP frame with the break opcode and command to run */
+    iap_frame_s frame = {
+        .opcode = ARM_THUMB_BREAKPOINT,
+        {.command = cmd},
+    };
 
-	/* Fill out the remainder of the parameters */
-	const size_t params_count = lpc40xx_iap_params(cmd);
-	va_list params;
-	va_start(params, cmd);
-	for (size_t i = 0; i < params_count; ++i)
-		frame.config.params[i] = va_arg(params, uint32_t);
-	va_end(params);
-	for (size_t i = params_count; i < 4; ++i)
-		frame.config.params[i] = 0U;
+    /* Fill out the remainder of the parameters */
+    const size_t params_count = lpc40xx_iap_params(cmd);
+    va_list params;
+    va_start(params, cmd);
+    for (size_t i = 0; i < params_count; ++i)
+        frame.config.params[i] = va_arg(params, uint32_t);
+    va_end(params);
+    for (size_t i = params_count; i < 4; ++i)
+        frame.config.params[i] = 0U;
 
-	/* Copy the structure to RAM */
-	target_mem_write(t, IAP_RAM_BASE, &frame, sizeof(iap_frame_s));
-	const uint32_t iap_params_addr = IAP_RAM_BASE + offsetof(iap_frame_s, config);
+    /* Copy the structure to RAM */
+    target_mem_write(t, IAP_RAM_BASE, &frame, sizeof(iap_frame_s));
+    const uint32_t iap_params_addr = IAP_RAM_BASE + offsetof(iap_frame_s, config);
 
-	/* Set up for the call to the IAP ROM */
-	uint32_t regs[t->regs_size / sizeof(uint32_t)];
-	target_regs_read(t, regs);
-	/* Point r0 to the start of the config block */
-	regs[0] = iap_params_addr;
-	/* And r1 to the same so we re-use the same memory for the results */
-	regs[1] = iap_params_addr;
-	/* Set the top of stack to the top of the RAM block we're using */
-	regs[REG_MSP] = IAP_RAM_BASE + MIN_RAM_SIZE;
-	/* Point the return address to our breakpoint opcode (thumb mode) */
-	regs[REG_LR] = IAP_RAM_BASE | 1;
-	/* And set the program counter to the IAP ROM entrypoint */
-	regs[REG_PC] = IAP_ENTRYPOINT;
-	target_regs_write(t, regs);
+    /* Set up for the call to the IAP ROM */
+    uint32_t regs[t->regs_size / sizeof(uint32_t)];
+    target_regs_read(t, regs);
+    /* Point r0 to the start of the config block */
+    regs[0] = iap_params_addr;
+    /* And r1 to the same so we re-use the same memory for the results */
+    regs[1] = iap_params_addr;
+    /* Set the top of stack to the top of the RAM block we're using */
+    regs[REG_MSP] = IAP_RAM_BASE + MIN_RAM_SIZE;
+    /* Point the return address to our breakpoint opcode (thumb mode) */
+    regs[REG_LR] = IAP_RAM_BASE | 1;
+    /* And set the program counter to the IAP ROM entrypoint */
+    regs[REG_PC] = IAP_ENTRYPOINT;
+    target_regs_write(t, regs);
 
-	platform_timeout timeout;
-	platform_timeout_set(&timeout, 500);
-	/* Start the t and wait for it to halt again */
-	target_halt_resume(t, false);
-	while (!target_halt_poll(t, NULL)) {
-		if (cmd == IAP_CMD_ERASE)
-			/*TODO target_print_progress(&timeout)*/;
-		else if (cmd == IAP_CMD_PARTID && platform_timeout_is_expired(&timeout)) {
-			target_halt_request(t);
-			return IAP_STATUS_INVALID_COMMAND;
-		}
-	}
+    platform_timeout timeout;
+    platform_timeout_set(&timeout, 500);
+    /* Start the t and wait for it to halt again */
+    target_halt_resume(t, false);
+    while (!target_halt_poll(t, NULL)) {
+        if (cmd == IAP_CMD_ERASE)
+            /*TODO target_print_progress(&timeout)*/;
+        else if (cmd == IAP_CMD_PARTID && platform_timeout_is_expired(&timeout)) {
+            target_halt_request(t);
+            return IAP_STATUS_INVALID_COMMAND;
+        }
+    }
 
-	/* Copy back just the results */
-	target_mem_read(t, result, iap_params_addr, sizeof(iap_result_s));
-	return (enum iap_status)((uint32_t*)result);
+    /* Copy back just the results */
+    target_mem_read(t, result, iap_params_addr, sizeof(iap_result_s));
+    return (enum iap_status)((uint32_t*)result);
 }
+
+
+

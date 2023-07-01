@@ -70,14 +70,27 @@ static bool lpc11xx_read_uid(target *t, int argc, const char *argv[])
     return true;
 }
 
-const struct command_s lpc11xx_cmd_list[]= {
+static bool lpc11xx_part_id(target *t, int argc, const char *argv[])
+{
+    (void)argc;
+    (void)argv;
+    struct lpc_flash *f =(struct lpc_flash*)t->flash;
+    uint32_t partid;
+    if (lpc_iap_call(f, &partid, IAP_CMD_PARTID))
+        return false;
+    tc_printf(t, "Part ID: 0x%08x\n", partid);
+    return true;
+}
+
+static const struct command_s lpc11xx_cmd_list[]= {
     {"readuid", lpc11xx_read_uid, "Read out the 16-byte UID."},
+    {"partid", lpc11xx_part_id, "Return the 32-bit part-id (aka device-id or chip-id)."},
     {NULL, NULL, NULL}
 };
 
-static void lpc11xx_add_flash(target *t, uint32_t addr, size_t len, size_t erasesize, uint32_t iap_entry, uint8_t reserved_pages)
+static void lpc11xx_add_flash(target *t, uint32_t addr, size_t length, size_t erasesize, uint32_t iap_entry, uint8_t reserved_pages)
 {
-    struct lpc_flash *lf = lpc_add_flash(t, addr, len);
+    struct lpc_flash *lf = lpc_add_flash(t, addr, length);
     lf->f.blocksize = erasesize;
     lf->f.buf_size = IAP_PGM_CHUNKSIZE;
     lf->f.write = lpc_flash_write_magic_vect;
@@ -89,84 +102,126 @@ static void lpc11xx_add_flash(target *t, uint32_t addr, size_t len, size_t erase
 
 bool lpc11xx_probe(target *t)
 {
-    uint32_t device_id;
-
-    /* read the device ID register */
-    /* For LPC11xx & LPC11Cxx see UM10398 Rev. 12.4 Chapter 26.5.11 Table 387
-     * For LPC11Uxx see UM10462 Rev. 5.5 Chapter 20.13.11 Table 377
-     * Nota Bene: the DEVICE_ID register at address 0x400483F4 is not valid
-     * for:
+    /* Read the DEVICE_ID register
+     *
+     * Nota Bene: the DEVICE_ID register at address 0x400483F4 is not valid for
      *   1) the LPC11xx & LPC11Cxx "XL" series, see UM10398 Rev.12.4 Chapter 3.1
      *   2) the LPC11U3x series, see UM10462 Rev.5.5 Chapter 3.1
      * But see the comment for the LPC8xx series below.
      */
-    device_id = target_mem_read32(t, LPC11XX_DEVICE_ID);
+    uint32_t device_id = target_mem_read32(t, LPC11XX_DEVICE_ID);
     switch (device_id) {
-    case 0x0A07102B:  /* LPC1110 - 4K Flash 1K SRAM */
-    case 0x1A07102B:  /* LPC1110 - 4K Flash 1K SRAM */
-    case 0x0A16D02B:  /* LPC1111/002 - 8K Flash 2K SRAM */
-    case 0x1A16D02B:  /* LPC1111/002 - 8K Flash 2K SRAM */
-    case 0x041E502B:  /* LPC1111/101 - 8K Flash 2K SRAM */
-    case 0x2516D02B:  /* LPC1111/101/102 - 8K Flash 2K SRAM */
-    case 0x0416502B:  /* LPC1111/201 - 8K Flash 4K SRAM */
-    case 0x2516902B:  /* LPC1111/201/202 - 8K Flash 4K SRAM */
-    case 0x0A23902B:  /* LPC1112/102 - 16K Flash 4K SRAM */
-    case 0x1A23902B:  /* LPC1112/102 - 16K Flash 4K SRAM */
-    case 0x042D502B:  /* LPC1112/101 - 16K Flash 2K SRAM */
-    case 0x2524D02B:  /* LPC1112/101/102 - 16K Flash 2K SRAM */
-    case 0x0425502B:  /* LPC1112/201 - 16K Flash 4K SRAM */
-    case 0x2524902B:  /* LPC1112/201/202 - 16K Flash 4K SRAM */
-    case 0x0434502B:  /* LPC1113/201 - 24K Flash 4K SRAM */
-    case 0x2532902B:  /* LPC1113/201/202 - 24K Flash 4K SRAM */
-    case 0x0434102B:  /* LPC1113/301 - 24K Flash 8K SRAM */
-    case 0x2532102B:  /* LPC1113/301/302 - 24K Flash 8K SRAM */
-    case 0x0A40902B:  /* LPC1114/102 - 32K Flash 4K SRAM */
-    case 0x1A40902B:  /* LPC1114/102 - 32K Flash 4K SRAM */
-    case 0x0444502B:  /* LPC1114/201 - 32K Flash 4K SRAM */
-    case 0x2540902B:  /* LPC1114/201/202 - 32K Flash 4K SRAM */
-    case 0x0444102B:  /* LPC1114/301 - 32K Flash 8K SRAM */
-    case 0x2540102B:  /* LPC1114/301/302 & LPC11D14/302 - 32K Flash 8K SRAM */
-    case 0x1421102B:  /* LPC11c12/301 - 16K Flash 8K SRAM */
-    case 0x1440102B:  /* LPC11c14/301 - 32K Flash 8K SRAM */
-    case 0x1431102B:  /* LPC11c22/301 - 16K Flash 8K SRAM */
-    case 0x1430102B:  /* LPC11c24/301 - 32K Flash 8K SRAM */
-    case 0x095C802B:  /* LPC11u12x/201 - 16K Flash 4K SRAM */
-    case 0x295C802B:  /* LPC11u12x/201 - 16K Flash 4K SRAM */
-    case 0x097A802B:  /* LPC11u13/201 - 24K Flash 4K SRAM */
-    case 0x297A802B:  /* LPC11u13/201 - 24K Flash 4K SRAM */
-    case 0x0998802B:  /* LPC11u14/201 - 32K Flash 4K SRAM */
-    case 0x2998802B:  /* LPC11u14/201 - 32K Flash 4K SRAM */
-    case 0x2954402B:  /* LPC11u22/301 - 16K Flash 6K SRAM */
-    case 0x2972402B:  /* LPC11u23/301 - 24K Flash 6K SRAM */
-    case 0x2988402B:  /* LPC11u24x/301 - 32K Flash 6K SRAM */
-    case 0x2980002B:  /* LPC11u24x/401 - 32K Flash 8K SRAM */
-        t->driver = "LPC11xx";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x20000, 0x1000, IAP_ENTRY_MOST, 0);
+    case 0x2500102B:  /* LPC1102 - M0 32K Flash 8K SRAM - UM10429 Rev 6 2013 Ch 17.5.11 Table 173 */
+    case 0x2548102B:  /* LPC1104 - M0 32K Flash 8K SRAM - UM10429 Rev 6 2013 Ch 17.5.11 Table 173 */
+        t->driver = "LPC110x";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
 
-    case 0x0A24902B:
-    case 0x1A24902B:
-        t->driver = "LPC1112";
-        target_add_ram(t, LPC_RAM_BASE, 0x1000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x10000, 0x1000, IAP_ENTRY_MOST, 0);
-        return true;
-    case 0x1000002b: /* FX LPC11U6 32 kB SRAM/256 kB flash (max) */
-        t->driver = "LPC11U6";
-        target_add_ram(t, LPC_RAM_BASE, 0x8000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x40000, 0x1000, IAP_ENTRY_MOST, 0);
-        return true;
-    case 0x3000002B:
-    case 0x3D00002B:
-        t->driver = "LPC1343";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x8000, 0x1000, IAP_ENTRY_MOST, 0);
+    case 0x0A07102B:  /* LPC1110 - M0 4K Flash 1K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1A07102B:  /* LPC1110 - M0 4K Flash 1K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0A16D02B:  /* LPC1111/002 - M0 8K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1A16D02B:  /* LPC1111/002 - M0 8K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x041E502B:  /* LPC1111/101 - M0 8K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2516D02B:  /* LPC1111/102 - M0 8K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0416502B:  /* LPC1111/201 - M0 8K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2516902B:  /* LPC1111/202 - M0 8K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x042D502B:  /* LPC1112/101 - M0 16K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2524D02B:  /* LPC1112/102 - M0 16K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0A24902B:  /* LPC1112/102 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1A24902B:  /* LPC1112/102 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0A23902B:  /* LPC1112/102 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1A23902B:  /* LPC1112/102 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0425502B:  /* LPC1112/201 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2524902B:  /* LPC1112/202 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0434502B:  /* LPC1113/201 - M0 24K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2532902B:  /* LPC1113/202 - M0 24K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0434102B:  /* LPC1113/301 - M0 24K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2532102B:  /* LPC1113/302 - M0 24K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0A40902B:  /* LPC1114/102 - M0 32K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1A40902B:  /* LPC1114/102 - M0 32K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0444502B:  /* LPC1114/201 - M0 32K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2540902B:  /* LPC1114/202 - M0 32K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x0444102B:  /* LPC1114/301 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x2540102B:  /* LPC1114/302 & LPC11D14/302 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+        t->driver = "LPC11xx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008A04:  /* LPC8N04 (see UM11074 Rev.1.3 section 4.5.19) */
+
+    case 0x1421102B:  /* LPC11C12/301 - M0 16K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1440102B:  /* LPC11C14/301 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1431102B:  /* LPC11C22/301 - M0 16K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x1430102B:  /* LPC11C24/301 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+        t->driver = "LPC11Cxx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x293E902B:  /* LPC11E11/101 - M0 8K Flash 4K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x2954502B:  /* LPC11E12/201 - M0 16K Flash 6K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x296A102B:  /* LPC11E13/301 - M0 24K Flash 8K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x2980102B:  /* LPC11E14/401 - M0 32K Flash 10K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x0000BC41:  /* LPC11E35/501 - M0 64K Flash 12K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x00009C41:  /* LPC11E36/501 - M0 96K Flash 12K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x00007C45:  /* LPC11E37/401 - M0 128K Flash 10K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x00007C41:  /* LPC11E37/501 - M0 128K Flash 12K SRAM - UM10518 Rev 3.5 2016 Ch 19.12.11 Table 311 */
+    case 0x0000DCC1:  /* LPC11E66 - M0+ 64K Flash 8K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+    case 0x0000BC81:  /* LPC11E67 - M0+ 128K Flash 16K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+    case 0x00007C01:  /* LPC11E68 - M0+ 256K Flash 32K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+        t->driver = "LPC11Exx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x8000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x40000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x095C802B:  /* LPC11U12/201 - M0 16K Flash 4K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x295C802B:  /* LPC11U12/201 - M0 16K Flash 4K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x097A802B:  /* LPC11U13/201 - M0 24K Flash 4K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x297A802B:  /* LPC11U13/201 - M0 24K Flash 4K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x0998802B:  /* LPC11U14/201 - M0 32K Flash 4K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x2998802B:  /* LPC11U14/201 - M0 32K Flash 4K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x2954402B:  /* LPC11U22/301 - M0 16K Flash 6K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x2972402B:  /* LPC11U23/301 - M0 24K Flash 6K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x2988402B:  /* LPC11U24/301 - M0 32K Flash 6K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x2980002B:  /* LPC11U24/401 - M0 32K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+        t->driver = "LPC11Uxx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x3640C02B:  /* LPC1224/101 - M0 32K Flash 4K SRAM - UM10441 Rev 2.2 2017 Ch 20.7.11 Table 303 */
+    case 0x3642C02B:  /* LPC1224/121 - M0 48K Flash 4K SRAM - UM10441 Rev 2.2 2017 Ch 20.7.11 Table 303 */
+    case 0x3650002B:  /* LPC1225/301 - M0 64K Flash 8K SRAM - UM10441 Rev 2.2 2017 Ch 20.7.11 Table 303 */
+    case 0x3652002B:  /* LPC1225/321 - M0 80K Flash 8K SRAM - UM10441 Rev 2.2 2017 Ch 20.7.11 Table 303 */
+    case 0x3660002B:  /* LPC1226/301 - M0 96K Flash 8K SRAM - UM10441 Rev 2.2 2017 Ch 20.7.11 Table 303 */
+    case 0x3670002B:  /* LPC1227/301 & LPC12D27/301 - M0 128K Flash 8K SRAM - UM10441 Rev 2.2 2017 Ch 20.7.11 Table 303 */
+        t->driver = "LPC122x";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x20000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x2C42502B:  /* LPC1311 - M3 8K Flash 4K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+    case 0x1816902B:  /* LPC1311/01 - M3 8K Flash 4K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+    case 0x2C40102B:  /* LPC1313 - M3 32K Flash 8K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+    case 0x1830102B:  /* LPC1313/01 - M3 32K Flash 8K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+    case 0x3D01402B:  /* LPC1342 - M3 16K Flash 4K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+    case 0x3000002B:  /* LPC1343 - M3 32K Flash 8K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+    case 0x3D00002B:  /* LPC1343 - M3 32K Flash 8K SRAM - UM10375 Rev 5 2012 Ch 21.13.11 Table 329 */
+        t->driver = "LPC13xx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x00008A04:  /* LPC8N04 - M0+ 32K Flash 8K SRAM - UM11074 Rev 1.3 2018 Ch 4.5.19 Table 25 */
         t->driver = "LPC8N04";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
         /* UM11074/ Flash controller/15.2: The two topmost sectors
          * contain the initialization code and IAP firmware.
          * Do not touch them! */
@@ -174,131 +229,146 @@ bool lpc11xx_probe(target *t)
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
     }
-    if ((t->t_designer != AP_DESIGNER_SPECULAR) && device_id) {
-        DEBUG_INFO("LPC11xx: Unknown IDCODE 0x%08" PRIx32 "\n", device_id);
-    }
-    /* For LPC802, see UM11045 Rev. 1.4 Chapter 6.6.29 Table 84
-     * For LPC804, see UM11065 Rev. 1.0 Chapter 6.6.31 Table 87
-     * For LPC81x, see UM10601 Rev. 1.6 Chapter 4.6.33 Table 50
-     * For LPC82x, see UM10800 Rev. 1.2 Chapter 5.6.34 Table 55
-     * For LPC83x, see UM11021 Rev. 1.1 Chapter 5.6.34 Table 53
-     * For LPC84x, see UM11029 Rev. 1.4 Chapter 8.6.49 Table 174
-     *
-     * Not documented, but the DEVICE_ID register at address 0x400483F8
+
+    if (t->t_designer != AP_DESIGNER_SPECULAR && device_id)
+        DEBUG_INFO("LPC1xxx: Unknown IDCODE 0x%08" PRIx32 "\n", device_id);
+
+    /* Not documented, but the DEVICE_ID register at address 0x400483F8
      * for the LPC8xx series is also valid for the LPC11xx "XL" and the
      * LPC11U3x variants.
      */
     device_id = target_mem_read32(t, LPC8XX_DEVICE_ID);
     switch (device_id) {
-    case 0x00008021:  /* LPC802M001JDH20 - 16K Flash 2K SRAM */
-    case 0x00008022:  /* LPC802M011JDH20 */
-    case 0x00008023:  /* LPC802M001JDH16 */
-    case 0x00008024:  /* LPC802M001JHI33 */
+    case 0x00008021:  /* LPC802M001JDH20 - M0+ 16K Flash 2K SRAM - UM11045 Rev 1.4 2018 Ch 4.5.12 Table 21 */
+    case 0x00008022:  /* LPC802M011JDH20 - M0+ 16K Flash 2K SRAM - UM11045 Rev 1.4 2018 Ch 4.5.12 Table 21 */
+    case 0x00008023:  /* LPC802M001JDH16 - M0+ 16K Flash 2K SRAM - UM11045 Rev 1.4 2018 Ch 4.5.12 Table 21 */
+    case 0x00008024:  /* LPC802M001JHI33 - M0+ 16K Flash 2K SRAM - UM11045 Rev 1.4 2018 Ch 4.5.12 Table 21 */
         t->driver = "LPC802";
-        target_add_ram(t, LPC_RAM_BASE, 0x800);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x4000, 0x400, IAP_ENTRY_84x, 2);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x800));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x4000), 0x400, IAP_ENTRY_84x, 2);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008040:  /* LPC804M101JBD64 - 32K Flash 4K SRAM */
-    case 0x00008041:  /* LPC804M101JDH20 */
-    case 0x00008042:  /* LPC804M101JDH24 */
-    case 0x00008043:  /* LPC804M111JDH24 */
-    case 0x00008044:  /* LPC804M101JHI33 */
+
+    case 0x00008040:  /* LPC804M101JBD64 - M0+ 32K Flash 4K SRAM - UM11065 Rev 1.0 2018 Ch 4.5.12 Table 21 */
+    case 0x00008041:  /* LPC804M101JDH20 - M0+ 32K Flash 4K SRAM - UM11065 Rev 1.0 2018 Ch 4.5.12 Table 21 */
+    case 0x00008042:  /* LPC804M101JDH24 - M0+ 32K Flash 4K SRAM - UM11065 Rev 1.0 2018 Ch 4.5.12 Table 21 */
+    case 0x00008043:  /* LPC804M111JDH24 - M0+ 32K Flash 4K SRAM - UM11065 Rev 1.0 2018 Ch 4.5.12 Table 21 */
+    case 0x00008044:  /* LPC804M101JHI33 - M0+ 32K Flash 4K SRAM - UM11065 Rev 1.0 2018 Ch 4.5.12 Table 21 */
         t->driver = "LPC804";
-        target_add_ram(t, LPC_RAM_BASE, 0x1000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x8000, 0x400, IAP_ENTRY_84x, 2);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x1000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x400, IAP_ENTRY_84x, 2);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008100:  /* LPC810M021FN8 - 4K Flash 1K SRAM */
-    case 0x00008110:  /* LPC811M001JDH16 - 8K Flash 2K SRAM */
-    case 0x00008120:  /* LPC812M101JDH16 - 16K Flash 4K SRAM */
-    case 0x00008121:  /* LPC812M101JD20 - 16K Flash 4K SRAM */
-    case 0x00008122:  /* LPC812M101JDH20 / LPC812M101JTB16 - 16K Flash 4K SRAM */
+
+    case 0x00008100:  /* LPC810M021FN8 - M0+ 4K Flash 1K SRAM - UM10601 Rev 1.6 2014 Ch 4.6.33 Table 50 */
+    case 0x00008110:  /* LPC811M001JDH16 - M0+ 8K Flash 2K SRAM - UM10601 Rev 1.6 2014 Ch 4.6.33 Table 50 */
+    case 0x00008120:  /* LPC812M101JDH16 - M0+ 16K Flash 4K SRAM - UM10601 Rev 1.6 2014 Ch 4.6.33 Table 50 */
+    case 0x00008121:  /* LPC812M101JD20 - M0+ 16K Flash 4K SRAM - UM10601 Rev 1.6 2014 Ch 4.6.33 Table 50 */
+    case 0x00008122:  /* LPC812M101JDH20 / LPC812M101JTB16 - M0+ 16K Flash 4K SRAM - UM10601 Rev 1.6 2014 Ch 4.6.33 Table 50 */
         t->driver = "LPC81x";
-        target_add_ram(t, LPC_RAM_BASE, 0x1000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x4000, 0x400, IAP_ENTRY_MOST, 0);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x1000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x4000), 0x400, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008221:  /* LPC822M101JHI33 - 16K Flash 4K SRAM */
-    case 0x00008222:  /* LPC822M101JDH20 */
-    case 0x00008241:  /* LPC824M201JHI33 - 32K Flash 8K SRAM */
-    case 0x00008242:  /* LPC824M201JDH20 */
+
+    case 0x00008221:  /* LPC822M101JHI33 - M0+ 16K Flash 4K SRAM - UM10800 Rev 1.2 2016 Ch 25.6.1.11 Table 324 */
+    case 0x00008222:  /* LPC822M101JDH20 - M0+ 16K Flash 4K SRAM - UM10800 Rev 1.2 2016 Ch 25.6.1.11 Table 324 */
+    case 0x00008241:  /* LPC824M201JHI33 - M0+ 32K Flash 8K SRAM - UM10800 Rev 1.2 2016 Ch 25.6.1.11 Table 324 */
+    case 0x00008242:  /* LPC824M201JDH20 - M0+ 32K Flash 8K SRAM - UM10800 Rev 1.2 2016 Ch 25.6.1.11 Table 324 */
         t->driver = "LPC82x";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x8000, 0x400, IAP_ENTRY_MOST, 0);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x400, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008322:  /* LPC832M101FDH20 - 16K Flash 4K SRAM */
-        t->driver = "LPC832";
-        target_add_ram(t, LPC_RAM_BASE, 0x1000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x4000, 0x400, IAP_ENTRY_MOST, 0);
+
+    case 0x00008322:  /* LPC832M101FDH20 - M0+ 16K Flash 4K SRAM - UM11021 Rev 1.1 2016 Ch 24.6.1.11 Table 317 */
+    case 0x00008341:  /* LPC834M101FHI33 - M0+ 32K Flash 4K SRAM - UM11021 Rev 1.1 2016 Ch 24.6.1.11 Table 317 */
+        t->driver = "LPC83x";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x1000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x400, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008341:  /* LPC834M101FHI33 - 32K Flash 4K SRAM */
-        t->driver = "LPC834";
-        target_add_ram(t, LPC_RAM_BASE, 0x1000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x8000, 0x400, IAP_ENTRY_MOST, 0);
+
+    case 0x00008441:  /* LPC844M201JBD64 - M0+ 64K Flash 8K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    case 0x00008442:  /* LPC844M201JBD48 - M0+ 64K Flash 8K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    case 0x00008443:  /* LPC844M201JHI48 - M0+ 64K Flash 8K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173; note: table 29 is wrong) */
+    case 0x00008444:  /* LPC844M201JHI33 - M0+ 64K Flash 8K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    case 0x00008451:  /* LPC845M301JBD64 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    case 0x00008452:  /* LPC845M301JBD48 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    case 0x00008453:  /* LPC845M301JHI48 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    case 0x00008454:  /* LPC845M301JHI33 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+        t->driver = "LPC84x";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x4000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x400, IAP_ENTRY_84x, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00008441:  /* LPC844M201JBD64 - 64K Flash 8K SRAM */
-    case 0x00008442:  /* LPC844M201JBD48 */
-    case 0x00008443:  /* LPC844M201JHI48, note UM11029 Rev.1.4 table 29 is wrong, see table 174 (in same manual) */
-    case 0x00008444:  /* LPC844M201JHI33 */
-        t->driver = "LPC844";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x10000, 0x400, IAP_ENTRY_84x, 0);
-        target_add_commands(t, lpc11xx_cmd_list, t->driver);
-        return true;
-    case 0x00008451:  /* LPC845M301JBD64 - 64K Flash 16K SRAM */
-    case 0x00008452:  /* LPC845M301JBD48 */
-    case 0x00008453:  /* LPC845M301JHI48 */
-    case 0x00008454:  /* LPC845M301JHI33 */
-        t->driver = "LPC845";
-        target_add_ram(t, LPC_RAM_BASE, 0x4000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x10000, 0x400, IAP_ENTRY_84x, 0);
-        target_add_commands(t, lpc11xx_cmd_list, t->driver);
-        return true;
-    case 0x0003D440:  /* LPC11U34/311 - 40K Flash 8K SRAM */
-    case 0x0001cc40:  /* LPC11U34/421 - 48K Flash 8K SRAM */
-    case 0x0001BC40:  /* LPC11U35/401 - 64K Flash 8K SRAM */
-    case 0x0000BC40:  /* LPC11U35/501 - 64K Flash 8K SRAM */
-    case 0x00019C40:  /* LPC11U36/401 - 96K Flash 8K SRAM */
-    case 0x00017C40:  /* LPC11U37FBD48/401 - 128K Flash 8K SRAM */
-    case 0x00007C44:  /* LPC11U37HFBD64/401 */
-    case 0x00007C40:  /* LPC11U37FBD64/501 */
+
+    case 0x0003D440:  /* LPC11U34/311 - M0 40K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x0001cc40:  /* LPC11U34/421 - M0 48K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x0001BC40:  /* LPC11U35/401 - M0 64K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x0000BC40:  /* LPC11U35/501 - M0 64K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x00019C40:  /* LPC11U36/401 - M0 96K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x00017C40:  /* LPC11U37/401 - M0 128K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x00007C44:  /* LPC11U37/401 - M0 128K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
+    case 0x00007C40:  /* LPC11U37/501 - M0 128K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
         t->driver = "LPC11U3x";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x20000, 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x20000), 0x1000, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-    case 0x00010013:  /* LPC1111/103 - 8K Flash 2K SRAM */
-    case 0x00010012:  /* LPC1111/203 - 8K Flash 4K SRAM */
-    case 0x00020023:  /* LPC1112/103 - 16K Flash 2K SRAM */
-    case 0x00020022:  /* LPC1112/203 - 16K Flash 4K SRAM */
-    case 0x00030030:  /* LPC1113/303 - 24K Flash 8K SRAM */
-    case 0x00030032:  /* LPC1113/203 - 24K Flash 4K SRAM */
-    case 0x00040040:  /* LPC1114/303 - 32K Flash 8K SRAM */
-    case 0x00040042:  /* LPC1114/203 - 32K Flash 4K SRAM */
-    case 0x00040060:  /* LPC1114/323 - 48K Flash 8K SRAM */
-    case 0x00040070:  /* LPC1114/333 - 56K Flash 8K SRAM */
-    case 0x00050080:  /* LPC1115/303 - 64K Flash 8K SRAM */
+
+    case 0x0000DCC8:  /* LPC11U66 - M0+ 64K Flash 8K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+    case 0x0000BC88:  /* LPC11U67 - M0+ 128K Flash 16K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+    case 0x0000BC80:  /* LPC11U67 - M0+ 128K Flash 16K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+    case 0x00007C08:  /* LPC11U68 - M0+ 256K Flash 32K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+    case 0x00007C00:  /* LPC11U68 - M0+ 256K Flash 32K SRAM - UM10732 Rev 1.8 2016 Ch 27.5.11 Table 377 */
+        t->driver = "LPC11U6x";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x8000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x40000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x00010013:  /* LPC1111/103 - M0 8K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00010012:  /* LPC1111/203 - M0 8K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00020023:  /* LPC1112/103 - M0 16K Flash 2K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00020022:  /* LPC1112/203 - M0 16K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00030032:  /* LPC1113/203 - M0 24K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00030030:  /* LPC1113/303 - M0 24K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00040042:  /* LPC1114/203 - M0 32K Flash 4K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00040040:  /* LPC1114/303 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00040060:  /* LPC1114/323 - M0 48K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00040070:  /* LPC1114/333 - M0 56K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    case 0x00050080:  /* LPC1115/303 - M0 64K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
         t->driver = "LPC11xx-XL";
-        target_add_ram(t, LPC_RAM_BASE, 0x2000);
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, 0x20000, 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x1000, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         return true;
-	case 0x00140040:  /* LPC1124/303 - 32K Flash 8K SRAM */
-	case 0x00150080:  /* LPC1125/303 - 64K Flash 8K SRAM */
-		t->driver = "LPC112x";
-		target_add_ram(t, LPC_RAM_BASE, 0x2000U);
-		lpc11xx_add_flash(t, LPC_FLASH_BASE,
-                          device_id == 0x00140040U ? 0x8000U : 0x10000U, 0x1000, IAP_ENTRY_MOST, 0);
-		target_add_commands(t, lpc11xx_cmd_list, t->driver);
-		return true;
+
+    case 0x00140040:  /* LPC1124/303 - 32K Flash 8K SRAM */
+    case 0x00150080:  /* LPC1125/303 - 64K Flash 8K SRAM */
+        t->driver = "LPC112x";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x3A010523:  /* LPC1315 - M3 32K Flash 8K SRAM - UM10524 Rev 4 2013 Ch 21.13.11 Table 358 */
+    case 0x1A018524:  /* LPC1316 - M3 48K Flash 8K SRAM - UM10524 Rev 4 2013 Ch 21.13.11 Table 358 */
+    case 0x1A020525:  /* LPC1317 - M3 64K Flash 8K SRAM - UM10524 Rev 4 2013 Ch 21.13.11 Table 358 */
+    case 0x28010541:  /* LPC1345 - M3 32K Flash 8K SRAM - UM10524 Rev 4 2013 Ch 21.13.11 Table 358 */
+    case 0x08018542:  /* LPC1346 - M3 48K Flash 8K SRAM - UM10524 Rev 4 2013 Ch 21.13.11 Table 358 */
+    case 0x08020543:  /* LPC1347 - M3 64K Flash 8K SRAM - UM10524 Rev 4 2013 Ch 21.13.11 Table 358 */
+        t->driver = "LPC13xx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
     }
-    if (device_id) {
-        DEBUG_INFO("LPC8xx: Unknown IDCODE 0x%08" PRIx32 "\n", device_id);
-    }
+
+    if (device_id)
+        DEBUG_INFO("LPC8xx, LPC1xxx(XL): Unknown IDCODE 0x%08" PRIx32 "\n", device_id);
 
     return false;
 }
+

@@ -50,17 +50,21 @@ struct flash_param {
 } __attribute__((aligned(4)));
 
 struct lpc17xx_priv {
-	uint32_t mpu_ctrl_state;
-	uint32_t memmap_state;
+    uint32_t mpu_ctrl_state;
+    uint32_t memmap_state;
 };
 
 static void lpc17xx_extended_reset(target *t);
 static bool lpc17xx_enter_flash_mode(target *t);
 static bool lpc17xx_exit_flash_mode(target *t);
+static bool lpc17xx_read_uid(target *t, int argc, const char *argv[]);
+static bool lpc17xx_part_id(target *t, int argc, const char *argv[]);
 static bool lpc17xx_cmd_erase(target *t, int argc, const char *argv[]);
 enum iap_status lpc17xx_iap_call(target *t, struct flash_param *param, enum iap_cmd cmd, ...);
 
-const struct command_s lpc17xx_cmd_list[] = {
+static const struct command_s lpc17xx_cmd_list[] = {
+    {"readuid", lpc17xx_read_uid, "Read out the 16-byte UID."},
+    {"partid", lpc17xx_part_id, "Return the 32-bit part-id (aka device-id or chip-id)."},
     {"erase_mass", lpc17xx_cmd_erase, "Erase entire flash memory"},
     {NULL, NULL, NULL}
 };
@@ -110,37 +114,64 @@ bool lpc17xx_probe(target *t)
         /* Read the Part ID */
         struct flash_param param;
         lpc17xx_iap_call(t, &param, IAP_CMD_PARTID);
-        target_halt_resume(t, 0);
+        target_halt_resume(t, false);
 
-        if (param.result[0]) {
+        if (param.result[0])
             return false;
-        }
 
+        size_t flash_size = lpc_flash_size(param.result[1], 0);
+        size_t sram_size = lpc_sram_size(param.result[1], 0x8000);
         switch (param.result[1]) {
-		case 0x26113F37: /* LPC1769 */
-		case 0x26013F37: /* LPC1768 */
-		case 0x26012837: /* LPC1767 */
-		case 0x26013F33: /* LPC1766 */
-		case 0x26013733: /* LPC1765 */
-		case 0x26011922: /* LPC1764 */
-		case 0x25113737: /* LPC1759 */
-		case 0x25013F37: /* LPC1758 */
-		case 0x25011723: /* LPC1756 */
-		case 0x25011722: /* LPC1754 */
-		case 0x25001121: /* LPC1752 */
-		case 0x25001118: /* LPC1751 */
-		case 0x25001110: /* LPC1751 (No CRP) */
-			t->driver = "LPC17xx";
-			t->extended_reset = lpc17xx_extended_reset;
-			t->enter_flash_mode = lpc17xx_enter_flash_mode;
-			t->exit_flash_mode = lpc17xx_exit_flash_mode;
-			target_add_ram(t, 0x10000000, 0x8000);
-			target_add_ram(t, 0x2007C000, 0x4000);
-			target_add_ram(t, 0x20080000, 0x4000);
-			lpc17xx_add_flash(t, 0x00000000, 0x10000, 0x1000, 0);
-			lpc17xx_add_flash(t, 0x00010000, 0x70000, 0x8000, 16);
-			target_add_commands(t, lpc17xx_cmd_list, "LPC17xx");
-			return true;
+        case 0x25001118:  /* LPC1751 - M3 32K Flash 8K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x25001110:  /* LPC1751 (No CRP) - M3 32K Flash 8K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x25001121:  /* LPC1752 - M3 64K Flash 16K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x25011722:  /* LPC1754 - M3 128K Flash 32K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x25011723:  /* LPC1756 - M3 256K Flash 32K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x25013F37:  /* LPC1758 - M3 512K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x25113737:  /* LPC1759 - M3 512K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26012033:  /* LPC1763 - M3 256K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26011922:  /* LPC1764 - M3 128K Flash 32K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26013733:  /* LPC1765 - M3 256K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26013F33:  /* LPC1766 - M3 256K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26012837:  /* LPC1767 - M3 512K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26013F37:  /* LPC1768 - M3 512K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x26113F37:  /* LPC1769 - M3 512K Flash 64K SRAM - UM10360 Rev 4.1 2016 Ch 32.7.11 Table 584 */
+        case 0x27011132:  /* LPC1774 - M3 128K Flash 32K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x27191F43:  /* LPC1776 - M3 256K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x27193747:  /* LPC1777 - M3 512K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x27193F47:  /* LPC1778 - M3 512K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x281D1743:  /* LPC1785 - M3 256K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x281D1F43:  /* LPC1786 - M3 256K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x281D3747:  /* LPC1787 - M3 512K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+        case 0x281D3F47:  /* LPC1788 - M3 512K Flash 64K SRAM - UM10470 Rev 4.0 2016 Ch 37.7.11 Table 747 */
+            t->driver = "LPC17xx";
+            t->extended_reset = lpc17xx_extended_reset;
+            t->enter_flash_mode = lpc17xx_enter_flash_mode;
+            t->exit_flash_mode = lpc17xx_exit_flash_mode;
+            if (sram_size <= 0x8000) {
+                target_add_ram(t, 0x10000000, sram_size);
+            } else {
+                /* first main SRAM block is 32 KiB */
+                target_add_ram(t, 0x10000000, 0x8000);
+                /* two more 16 KiB blocks may be present (these are consecutive,
+                   and so they might be considered a single 32 KiB block) */
+                if (sram_size > 0x8000)
+                    target_add_ram(t, 0x2007C000, 0x4000);
+                if (sram_size > 0xc000)
+                    target_add_ram(t, 0x20080000, 0x4000);
+            }
+            if (flash_size <= 0x10000) {
+                lpc17xx_add_flash(t, 0x00000000, flash_size, 0x1000, 0);
+            } else {
+                /* first 64 KiB is in 4 KiB sectors */
+                lpc17xx_add_flash(t, 0x00000000, 0x10000, 0x1000, 0);
+            }
+            if (flash_size > 0x10000) {
+                /* remaining Flash is in 32 KiB sectors */
+                lpc17xx_add_flash(t, 0x00010000, flash_size - 0x10000, 0x8000, 16);
+            }
+            target_add_commands(t, lpc17xx_cmd_list, "LPC17xx");
+            return true;
         }
     }
     return false;
@@ -148,22 +179,54 @@ bool lpc17xx_probe(target *t)
 
 static bool lpc17xx_enter_flash_mode(target *t)
 {
-	struct lpc17xx_priv *priv = (struct lpc17xx_priv*)t->target_storage;
-	/* Disable the MPU, if enabled */
-	priv->mpu_ctrl_state = target_mem_read32(t, LPC17xx_MPU_CTRL);
-	target_mem_write32(t, LPC17xx_MPU_CTRL, 0);
-	/* And store the memory mapping state */
-	priv->memmap_state = target_mem_read32(t, LPC17xx_MEMMAP);
-	return true;
+    struct lpc17xx_priv *priv = (struct lpc17xx_priv*)t->target_storage;
+    /* Disable the MPU, if enabled */
+    priv->mpu_ctrl_state = target_mem_read32(t, LPC17xx_MPU_CTRL);
+    target_mem_write32(t, LPC17xx_MPU_CTRL, 0);
+    /* And store the memory mapping state */
+    priv->memmap_state = target_mem_read32(t, LPC17xx_MEMMAP);
+    return true;
 }
 
 static bool lpc17xx_exit_flash_mode(target *t)
 {
-	struct lpc17xx_priv *priv = (struct lpc17xx_priv*)t->target_storage;
-	/* Restore the memory mapping and MPU state (in that order!) */
-	target_mem_write32(t, LPC17xx_MEMMAP, priv->memmap_state);
-	target_mem_write32(t, LPC17xx_MPU_CTRL, priv->mpu_ctrl_state);
-	return true;
+    struct lpc17xx_priv *priv = (struct lpc17xx_priv*)t->target_storage;
+    /* Restore the memory mapping and MPU state (in that order!) */
+    target_mem_write32(t, LPC17xx_MEMMAP, priv->memmap_state);
+    target_mem_write32(t, LPC17xx_MPU_CTRL, priv->mpu_ctrl_state);
+    return true;
+}
+
+static bool lpc17xx_read_uid(target *t, int argc, const char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    lpc17xx_enter_flash_mode(t);
+    struct flash_param param;
+    lpc17xx_iap_call(t, &param, IAP_CMD_READUID);
+    lpc17xx_exit_flash_mode(t);
+
+    tc_printf(t, "UID: 0x");
+    const uint8_t *uid = (const uint8_t*)&param.result[1];
+    for (uint32_t i = 0; i < 16; ++i)
+        tc_printf(t, "%02x", uid[i]);
+    tc_printf(t, "\n");
+    return true;
+}
+
+static bool lpc17xx_part_id(target *t, int argc, const char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    lpc17xx_enter_flash_mode(t);
+    struct flash_param param;
+    lpc17xx_iap_call(t, &param, IAP_CMD_PARTID);
+    lpc17xx_exit_flash_mode(t);
+
+    tc_printf(t, "Part ID: 0x%08x\n", param.result[1]);
+    return true;
 }
 
 static bool lpc17xx_cmd_erase(target *t, int argc, const char *argv[])
@@ -199,7 +262,7 @@ static bool lpc17xx_cmd_erase(target *t, int argc, const char *argv[])
  */
 static void lpc17xx_extended_reset(target *t)
 {
-    /* From §33.6 Debug memory re-mapping (Page 643) UM10360.pdf (Rev 2) */
+    /* From Ch 33.6 Debug memory re-mapping (Page 643) UM10360.pdf (Rev 2) */
     target_mem_write32(t, MEMMAP, 1);
 }
 
@@ -235,3 +298,4 @@ enum iap_status lpc17xx_iap_call(target *t, struct flash_param *param, enum iap_
     target_mem_read(t, (void *)param, IAP_RAM_BASE, sizeof(struct flash_param));
     return param->result[0];
 }
+
