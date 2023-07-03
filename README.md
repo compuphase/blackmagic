@@ -11,6 +11,8 @@ In addition to the above, this fork features:
 * More detailed and more extensive support for microcontrollers in the LPC family (by NXP), such as support for the LPC11Exx series and the LPC18xx series. This release also reports *accurate* sizes for Flash and SRAM, for the LPC family.
 * Correct scheduling of driving/polling `SWDIO` relative to `SWCLK` and in regard to set-up and hold times (this is my own implementation, not based on PR #1220 of the [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic), which is *still* not entirely correct).
 
+**Nota Bene**: This fork focuses on the *native* and "*hosted*" platforms. Other platforms are not regularly checked.
+
 ## Why does this fork exist?
 The official release 1.7 has always run reliably in our production. *All* official releases after 1.7, however, are either unstable (releases 1.8.x) or broken with regard to LPC microcontrollers. Shortly after the release of 1.7.1, project maintenance moved to a new team (at 1BitSquared), and I am not comfortable with the "move fast and break things" mentality of the new team.
 
