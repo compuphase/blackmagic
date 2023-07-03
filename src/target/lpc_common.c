@@ -296,6 +296,9 @@ static const struct lpc_meminfo_s lpc_meminfo[] = {
     { 0x00008452,  0x10000,  0x4000 },  /* LPC845M301 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
     { 0x00008453,  0x10000,  0x4000 },  /* LPC845M301 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
     { 0x00008454,  0x10000,  0x4000 },  /* LPC845M301 - M0+ 64K Flash 16K SRAM - UM11029 Rev 1.7 2021 Ch 8.6.49 Table 173 */
+    { 0x00008651,  0x10000,  0x2000 },  /* LPC865M201 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
+    { 0x00008652,  0x10000,  0x2000 },  /* LPC865M201 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
+    { 0x00008654,  0x10000,  0x2000 },  /* LPC865M201 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
     { 0x2500102B,   0x8000,  0x2000 },  /* LPC1102 - M0 32K Flash 8K SRAM - UM10429 Rev 6 2013 Ch 17.5.11 Table 173 */
     { 0x2548102B,   0x8000,  0x2000 },  /* LPC1104 - M0 32K Flash 8K SRAM - UM10429 Rev 6 2013 Ch 17.5.11 Table 173 */
     { 0x0A07102B,   0x1000,   0x400 },  /* LPC1110 - M0 4K Flash 1K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
@@ -335,6 +338,13 @@ static const struct lpc_meminfo_s lpc_meminfo[] = {
     { 0x00040060,   0xc000,  0x2000 },  /* LPC1114/323 - M0 48K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
     { 0x00040070,   0xe000,  0x2000 },  /* LPC1114/333 - M0 56K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
     { 0x00050080,  0x10000,  0x2000 },  /* LPC1115/303 - M0 64K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
+    { 0x4D4C802B,   0x4000,  0x1000 },  /* LPC11A02UK - M0 16K Flash 4K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    { 0x4D80002B,   0x8000,  0x2000 },  /* LPC11A04UK - M0 32K Flash 8K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    { 0x455EC02B,   0x2000,   0x800 },  /* LPC11A11/001 - M0 8K Flash 2K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    { 0x4574802B,   0x4000,  0x1000 },  /* LPC11A12/101 - M0 16K Flash 4K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    { 0x458A402B,   0x6000,  0x1800 },  /* LPC11A13/201 - M0 24K Flash 6K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    { 0x35A0002B,   0x8000,  0x2000 },  /* LPC11A14/301 - M0 32K Flash 8K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    { 0x45A0002B,   0x8000,  0x2000 },  /* LPC11A14/301 - M0 32K Flash 8K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
     { 0x1421102B,   0x4000,  0x2000 },  /* LPC11C12/301 - M0 16K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
     { 0x1440102B,   0x8000,  0x2000 },  /* LPC11C14/301 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
     { 0x1431102B,   0x4000,  0x2000 },  /* LPC11C22/301 - M0 16K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */

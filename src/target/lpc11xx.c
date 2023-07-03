@@ -29,8 +29,8 @@
 #define MIN_RAM_SIZE                1024
 #define RAM_USAGE_FOR_IAP_ROUTINES  32  /* IAP routines use 32 bytes at top of ram */
 
-#define IAP_ENTRY_MOST  0x1fff1ff1  /* all except LPC802, LPC804 & LPC84x */
-#define IAP_ENTRY_84x   0x0f001ff1  /* LPC802, LPC804 & LPC84x */
+#define IAP_ENTRY_MOST  0x1fff1ff1  /* all except LPC80x, LPC84x, LPC86x */
+#define IAP_ENTRY_84x   0x0f001ff1  /* LPC80x & LPC84x */
 #define IAP_RAM_BASE    0x10000000
 
 #define LPC11XX_DEVICE_ID  0x400483F4
@@ -40,19 +40,20 @@
 #define LPC_FLASH_BASE  0x00000000
 
 /*
- * CHIP    Ram Flash page sector   Rsvd pages  EEPROM
- * LPX80x   2k   16k   64   1024            2
- * LPC804   4k   32k   64   1024            2
- * LPC8N04  8k   32k   64   1024           32
- * LPC810   1k    4k   64   1024            0
- * LPC811   2k    8k   64   1024            0
- * LPC812   4k   16k   64   1024
- * LPC822   4k   16k   64   1024
- * LPC822   8k   32k   64   1024
- * LPC832   4k   16k   64   1024
- * LPC834   4k   32k   64   1024
- * LPC844   8k   64k   64   1024
- * LPC845  16k   64k   64   1024
+ * CHIP    Flash Ram Page Sector   Rsvd pages  EEPROM
+ * LPX802    16k  2k   64   1024            2     -
+ * LPC804    32k  4k   64   1024            2     -
+ * LPC8N04   32k  8k   64   1024           32     4k
+ * LPC810     4k  1k   64   1024            -     -
+ * LPC811     8k  2k   64   1024            -     -
+ * LPC812    16k  4k   64   1024            -     -
+ * LPC822    16k  4k   64   1024            -     -
+ * LPC824    32k  8k   64   1024            -     -
+ * LPC832    16k  4k   64   1024            -     -
+ * LPC834    32k  4k   64   1024            -     -
+ * LPC844    64k  8k   64   1024            -     -
+ * LPC845    64k 16k   64   1024            -     -
+ * LPC865    64k  8k   64   1024            -     -
  */
 
 static bool lpc11xx_read_uid(target *t, int argc, const char *argv[])
@@ -146,6 +147,19 @@ bool lpc11xx_probe(target *t)
     case 0x0444102B:  /* LPC1114/301 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
     case 0x2540102B:  /* LPC1114/302 & LPC11D14/302 - M0 32K Flash 8K SRAM - UM10398 Rev 12.4 2016 Ch 26.5.11 Table 387 */
         t->driver = "LPC11xx";
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x4D4C802B:  /* LPC11A02UK - M0 16K Flash 4K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    case 0x4D80002B:  /* LPC11A04UK - M0 32K Flash 8K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    case 0x455EC02B:  /* LPC11A11/001 - M0 8K Flash 2K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    case 0x4574802B:  /* LPC11A12/101 - M0 16K Flash 4K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    case 0x458A402B:  /* LPC11A13/201 - M0 24K Flash 6K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    case 0x35A0002B:  /* LPC11A14/301 - M0 32K Flash 8K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+    case 0x45A0002B:  /* LPC11A14/301 - M0 32K Flash 8K SRAM - UM10527 Rev 3 2012, Ch 20.7.11 Table 228 */
+        t->driver = "LPC11Axx";
         target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
         lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x8000), 0x1000, IAP_ENTRY_MOST, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
@@ -301,6 +315,17 @@ bool lpc11xx_probe(target *t)
         target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x4000));
         lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x400, IAP_ENTRY_84x, 0);
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        return true;
+
+    case 0x00008651:  /* LPC865M201JBD64 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
+    case 0x00008652:  /* LPC865M201JHI48 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
+    case 0x00008654:  /* LPC865M201JHI33 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
+        t->driver = "LPC86x";
+        #define IAP_LOCATION *(volatile unsigned int *)(0x0F001D98) /* see UM11607 Ch 4.6 */
+        target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
+        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x400, IAP_LOCATION, 0);
+        target_add_commands(t, lpc11xx_cmd_list, t->driver);
+        #undef IAP_LOCATION
         return true;
 
     case 0x0003D440:  /* LPC11U34/311 - M0 40K Flash 8K SRAM - UM10462 Rev 5.5 2016 Ch 20.13.11 Table 377 */
