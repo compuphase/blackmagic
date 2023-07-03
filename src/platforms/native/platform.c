@@ -118,7 +118,7 @@ int platform_hwversion(void)
         gpio_clear(GPIOB, hwversion_pins);
 
         /* Wait a little to make sure the pull down is in effect... */
-        for(volatile int i = 0; i < 100; i++) 
+        for(volatile int i = 0; i < 100; i++)
             __asm__("nop");
 
         /* Get all the pins that are pulled high in hardware. */
@@ -160,7 +160,7 @@ void platform_init(void)
 
     gpio_set_mode(JTAG_PORT, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, TMS_DIR_PIN | TCK_PIN | TDI_PIN);
     gpio_set_mode(JTAG_PORT, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_INPUT_FLOAT, TMS_PIN);
-    
+
     /* This needs some fixing... */
     /* Toggle required to sort out line drivers... */
     gpio_port_write(GPIOA, 0x8102);
@@ -174,7 +174,7 @@ void platform_init(void)
         gpio_set_mode(TCK_PORT, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, TCK_PIN);
         gpio_clear(TCK_DIR_PORT, TCK_DIR_PIN);
     }
-    
+
     gpio_set_mode(LED_PORT, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LED_UART | LED_IDLE_RUN | LED_ERROR);
 
     /* Enable SRST output. Original uses a NPN to pull down, so setting the
@@ -237,7 +237,7 @@ void platform_srst_set_val(bool assert)
         gpio_set_val(SRST_PORT, SRST_PIN, !assert);
 
     if (assert) {
-        for(volatile int i = 0; i < 10000; i++) 
+        for(volatile int i = 0; i < 10000; i++)
             __asm__("nop");
     }
 }
@@ -277,7 +277,7 @@ static void adc_init(void)
     adc_disable_external_trigger_regular(ADC1);
     adc_set_right_aligned(ADC1);
     adc_set_sample_time_on_all_channels(ADC1, ADC_SMPR_SMP_239DOT5CYC);
-
+    adc_enable_temperature_sensor();
     adc_power_on(ADC1);
 
     /* Wait for ADC starting up. */

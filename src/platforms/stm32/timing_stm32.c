@@ -22,19 +22,25 @@
 #include <libopencm3/cm3/systick.h>
 #include <libopencm3/cm3/nvic.h>
 #include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/adc.h>
 
 uint8_t running_status;
 static volatile uint32_t time_ms;
 uint32_t swd_delay_cnt = 0;
 
-static int morse_tick;
+static int morse_tick = 0;
+#ifdef PLATFORM_HAS_POWER_SWITCH
+static uint8_t monitor_ticks = 0;
+#define ADC_VREFINT_MAX 1638U   /* Derived from calculating (1.2V / 3.0V) * 4096 */
+#define ADC_VREFINT_MIN 1365U   /* Derived from calculating (1.2V / 3.6V) * 4096 */
+#endif
 
 void platform_timing_init(void)
 {
     /* Setup heartbeat timer */
     systick_set_clocksource(STK_CSR_CLKSOURCE_AHB_DIV8);
-    /* Interrupt us at 10 Hz */
-    systick_set_reload(rcc_ahb_frequency / (8 * SYSTICKHZ) );
+    /* Interrupt us at 100 Hz */
+    systick_set_reload(rcc_ahb_frequency / (8 * SYSTICKHZ) - 1);
     /* SYSTICK_IRQ with low priority */
     nvic_set_priority(NVIC_SYSTICK_IRQ, 14 << 4);
     systick_interrupt_enable();
@@ -53,13 +59,54 @@ void sys_tick_handler(void)
     time_ms += SYSTICKMS;
 
     if (morse_tick >= MORSECNT) {
-        if(running_status)
+        if (running_status)
             gpio_toggle(LED_PORT, LED_IDLE_RUN);
         SET_ERROR_STATE(morse_update());
         morse_tick = 0;
     } else {
         morse_tick++;
     }
+
+#ifdef PLATFORM_HAS_POWER_SWITCH
+    /* First check if target power is presently enabled */
+    if (platform_target_get_power()) {
+        /*
+         * Every 10 systicks, set up an ADC conversion on the 9th tick, then
+         * read back the value on the 10th, checking the internal bandgap reference
+         * is still sat in the correct range. If it diverges down, this indicates
+         * backfeeding and that VCC is being pulled higher than 3.3V. If it diverges
+         * up, this indicates either backfeeding or overcurrent and that VCC is being
+         * pulled below 3.3V. In either case, for safety, disable tpwr and set
+         * a morse error of "TPWR ERROR"
+         */
+        #define VTEST_INTERVAL  10
+        /* If we're on the 9th tick, start the bandgap conversion */
+        if (monitor_ticks == VTEST_INTERVAL - 2) {
+            uint8_t channel = ADC_CHANNEL_VREF;
+            adc_set_regular_sequence(ADC1, 1, &channel);
+            adc_start_conversion_direct(ADC1);
+        }
+
+        /* If we're on the 10th tick, check the result of bandgap conversion */
+        if (monitor_ticks == VTEST_INTERVAL - 1) {
+            uint32_t ref = adc_read_regular(ADC1);
+            /* Clear EOC bit. The GD32F103 does not automatically reset it on ADC read. */
+            ADC_SR(ADC1) &= ~ADC_SR_EOC;
+            monitor_ticks = 0;
+
+            /* Now compare the reference against the known good range */
+            if (ref > ADC_VREFINT_MAX || ref < ADC_VREFINT_MIN) {
+                /* Something's wrong, so turn tpwr off and set the morse blink pattern */
+                platform_target_set_power(false);
+                morse("TPWR ERROR", true);
+            }
+        } else {
+            ++monitor_ticks;
+        }
+    } else {
+        monitor_ticks = 0;
+    }
+#endif
 }
 
 uint32_t platform_time_ms(void)
