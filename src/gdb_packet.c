@@ -127,12 +127,12 @@ size_t gdb_getpacket(char *packet, size_t size)
         gdb_if_putchar('-', 1); /* send nack */
     }
     gdb_if_putchar('+', 1); /* send ack */
-    packet[offset] = 0;
+    packet[offset] = '\0';
 
 #if PC_HOSTED == 1
     DEBUG_GDB_WIRE("%s : ", __func__);
-    for(size_t j = 0; j < i; j++) {
-        c = packet[j];
+    for(size_t j = 0; j < offset; j++) {
+        char c = packet[j];
         if (c >= 32 && c < 127)
             DEBUG_GDB_WIRE("%c", c);
         else

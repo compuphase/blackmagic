@@ -614,7 +614,7 @@ static void handle_v_packet(char *packet, size_t plen)
             target_reset(cur_target);
             flash_mode = 1;
         }
-        if (target_flash_erase(cur_target, addr, len) == 0) {
+        if (target_flash_erase(cur_target, addr, len)) {
             gdb_putpacketz("OK");
         } else {
             flash_mode = 0;
@@ -625,7 +625,7 @@ static void handle_v_packet(char *packet, size_t plen)
         /* Write Flash Memory */
         uint32_t count = plen - bin;
         DEBUG_GDB("Flash Write %08" PRIX32 " %08" PRIX32 "\n", addr, count);
-        if (cur_target && target_flash_write(cur_target, addr, (void*)packet + bin, count) == 0) {
+        if (cur_target && target_flash_write(cur_target, addr, (void*)packet + bin, count)) {
             gdb_putpacketz("OK");
         } else {
             flash_mode = 0;
@@ -634,7 +634,10 @@ static void handle_v_packet(char *packet, size_t plen)
 
     } else if (strcmp(packet, "vFlashDone") == 0) {
         /* Commit flash operations. */
-        gdb_putpacketz(target_flash_done(cur_target) ? "EFF" : "OK");
+        if (target_flash_done(cur_target))
+            gdb_putpacketz("OK");
+        else
+            gdb_putpacketz("EFF");
         flash_mode = 0;
 
     } else if (strcmp(packet, "vStopped") == 0) {

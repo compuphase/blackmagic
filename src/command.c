@@ -68,6 +68,10 @@ static bool cmd_rtt(target *t, int argc, const char **argv);
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
+#ifdef PLATFORM_HAS_UART_WHEN_SWDP
+static bool cmd_convert_tdio(target *t, int argc, const char **argv);
+static bool cmd_set_srst(target *t, int argc, const char **argv);
+#endif
 
 const struct command_s cmd_list[] = {
     {"version", cmd_version, "Display firmware version info"},
@@ -99,6 +103,11 @@ const struct command_s cmd_list[] = {
     {"heapinfo", cmd_heapinfo, "Set semihosting heapinfo" },
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
     {"debug_bmp", cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
+#endif
+#ifdef PLATFORM_HAS_UART_WHEN_SWDP
+	{"convert_tdio", cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
+	{"set_srst", cmd_set_srst,"Set output state of SRST pin (enable|disable)"},
+#endif
 #endif
     {NULL, NULL, NULL}
 };
@@ -360,7 +369,7 @@ bool cmd_frequency(target *t, int argc, const char **argv)
         }
         platform_max_frequency_set(frequency);
     }
-    const uint32_t freq = platform_max_frequency_get();
+    uint32_t freq = platform_max_frequency_get();
     if (freq == FREQ_FIXED)
         gdb_outf("SWJ freq fixed\n");
     else
@@ -578,6 +587,41 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv)
     return true;
 }
 #endif
+
+#ifdef PLATFORM_HAS_UART_WHEN_SWDP
+static bool cmd_convert_tdio(target *t, int argc, const char **argv)
+{
+        (void)t;
+
+	uint8_t val;
+	if (argc > 1) {
+		val = (!strcmp(argv[1], "enable")) ? true : false;
+		usbuart_convert_tdio(val);
+	} else {
+		gdb_outf("Convert_tdio: %s\n",(usbuart_convert_tdio_enabled()) ?
+				"enabled" : "disabled");
+	}
+
+	return true;
+}
+
+static bool cmd_set_srst(target *t, int argc, const char **argv)
+{
+	(void) t;
+
+	uint8_t val;
+	if (argc > 1) {
+		val = (!strcmp(argv[1], "enable")) ? true : false;
+		platform_srst_set_val(val);
+	} else {
+		gdb_outf("SRST: %s\n",(platform_srst_get_val()) ?
+				"enabled" : "disabled");
+	}
+
+	return true;
+}
+#endif
+
 static bool cmd_heapinfo(target *t, int argc, const char **argv)
 {
     if (t == NULL) {

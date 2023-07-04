@@ -293,8 +293,7 @@ bool target_flash_erase(target *t, target_addr addr, size_t len)
     if (!target_enter_flash_mode(t))
         return false;
 
-    bool ret = true; /* Catch false returns with &= */
-    while (len > 0 && ret) {
+    while (len > 0) {
         struct target_flash *f = target_flash_for_addr(t, addr);
         if (!f) {
             DEBUG_WARN("Requested address is outside the valid range 0x%06" PRIx32 "\n", addr);
@@ -303,15 +302,14 @@ bool target_flash_erase(target *t, target_addr addr, size_t len)
 
         size_t tmptarget = MIN(addr + len, f->start + f->length);
         size_t tmplen = tmptarget - addr;
-        ret &= f->erase(f, addr, tmplen);
-        if (!ret) {
+        if (f->erase(f, addr, tmplen) != 0) {
             DEBUG_WARN("Erase failed at %" PRIx32 "\n", addr);
-            break;
+            return false;
         }
         addr += tmplen;
         len -= tmplen;
     }
-    return ret;
+    return true;
 }
 
 bool target_flash_write(target *t,
@@ -320,21 +318,21 @@ bool target_flash_write(target *t,
     if (!target_enter_flash_mode(t))
         return false;
 
-    bool ret = true; /* Catch false returns with &= */
-    while (len > 0 && ret) {
+    while (len > 0) {
         struct target_flash *f = target_flash_for_addr(t, dest);
         if (!f)
             return false;
         size_t tmptarget = MIN(dest + len, f->start + f->length);
         size_t tmplen = tmptarget - dest;
-        ret &= target_flash_write_buffered(f, dest, src, tmplen);
-        if (!ret)
+        if (!target_flash_write_buffered(f, dest, src, tmplen)) {
             DEBUG_WARN("Write failed at %" PRIx32 "\n", dest);
+            return false;
+        }
         dest += tmplen;
         src += tmplen;
         len -= tmplen;
     }
-    return ret;
+    return true;
 }
 
 bool target_flash_done(target *t)
@@ -342,11 +340,12 @@ bool target_flash_done(target *t)
     if (!t->flash_mode)
         return false;
 
-    bool ret = true; /* Catch false returns with &= */
+    bool ret = true;
     for (struct target_flash *f = t->flash; f; f = f->next) {
-        ret &= target_flash_done_buffered(f);
-        if (f->done)
-            ret &= f->done(f);
+        if (!target_flash_done_buffered(f))
+            ret = false;
+        if (f->done && f->done(f) != 0)
+            ret = false;
     }
     target_exit_flash_mode(t);
     return ret;
@@ -355,7 +354,7 @@ bool target_flash_done(target *t)
 bool target_flash_write_buffered(struct target_flash *f,
                                  target_addr dest, const void *src, size_t len)
 {
-    bool ret = true; /* Catch false returns with &= */
+    bool ret = true;
 
     if (f->buf == NULL) {
         /* Allocate flash sector buffer */
@@ -372,7 +371,8 @@ bool target_flash_write_buffered(struct target_flash *f,
         if (base != f->buf_addr) {
             if (f->buf_addr != (uint32_t)-1) {
                 /* Write sector to flash if valid */
-                ret &= f->write(f, f->buf_addr, f->buf, f->buf_size);
+                if (f->write(f, f->buf_addr, f->buf, f->buf_size) != 0)
+                    ret = false;
             }
             /* Setup buffer for a new sector */
             f->buf_addr = base;
@@ -390,10 +390,10 @@ bool target_flash_write_buffered(struct target_flash *f,
 
 bool target_flash_done_buffered(struct target_flash *f)
 {
-    bool ret = false;
-    if ((f->buf != NULL) && (f->buf_addr != (uint32_t)-1)) {
+    bool ret = true;
+    if (f->buf != NULL && f->buf_addr != (uint32_t)-1) {
         /* Write sector to flash if valid */
-        ret = f->write(f, f->buf_addr, f->buf, f->buf_size);
+        ret = (f->write(f, f->buf_addr, f->buf, f->buf_size) == 0);
         f->buf_addr = -1;
         free(f->buf);
         f->buf = NULL;
@@ -414,7 +414,8 @@ void target_detach(target *t)
 #endif
 }
 
-bool target_check_error(target *t) {
+bool target_check_error(target *t)
+{
     if (t)
         return t->check_error(t);
     else
@@ -428,13 +429,13 @@ bool target_attached(target *t)
 
 /* Memory access functions */
 int target_mem_read(target *t, void *dest, target_addr src, size_t len)
-{
+{   //TODO: returns true on error (counter-intuitive)
     t->mem_read(t, dest, src, len);
     return target_check_error(t);
 }
 
 int target_mem_write(target *t, target_addr dest, const void *src, size_t len)
-{
+{   //TODO: returns true on error (counter-intuitive)
     t->mem_write(t, dest, src, len);
     return target_check_error(t);
 }

@@ -24,15 +24,16 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/adc.h>
 
-uint8_t running_status;
 static volatile uint32_t time_ms;
 uint32_t swd_delay_cnt = 0;
+uint8_t running_status = 0;
 
 static int morse_tick = 0;
 #ifdef PLATFORM_HAS_POWER_SWITCH
-static uint8_t monitor_ticks = 0;
-#define ADC_VREFINT_MAX 1638U   /* Derived from calculating (1.2V / 3.0V) * 4096 */
-#define ADC_VREFINT_MIN 1365U   /* Derived from calculating (1.2V / 3.6V) * 4096 */
+#   define ADC_VREFINT_MAX 1638U   /* Derived from calculating (1.2V / 3.0V) * 4096 */
+#   define ADC_VREFINT_MIN 1365U   /* Derived from calculating (1.2V / 3.6V) * 4096 */
+#   define VREFINT_INTERVAL   10   /* in multiples of of systick intervals */
+    static uint8_t monitor_ticks = VREFINT_INTERVAL;
 #endif
 
 void platform_timing_init(void)
@@ -79,20 +80,19 @@ void sys_tick_handler(void)
          * pulled below 3.3V. In either case, for safety, disable tpwr and set
          * a morse error of "TPWR ERROR"
          */
-        #define VTEST_INTERVAL  10
-        /* If we're on the 9th tick, start the bandgap conversion */
-        if (monitor_ticks == VTEST_INTERVAL - 2) {
+        /* On the tick prior to the one where we sample, start the bandgap conversion */
+        if (monitor_ticks == 1) {
             uint8_t channel = ADC_CHANNEL_VREF;
             adc_set_regular_sequence(ADC1, 1, &channel);
             adc_start_conversion_direct(ADC1);
         }
 
-        /* If we're on the 10th tick, check the result of bandgap conversion */
-        if (monitor_ticks == VTEST_INTERVAL - 1) {
+        /* When count exhausted, check the result of bandgap conversion */
+        if (monitor_ticks == 0) {
             uint32_t ref = adc_read_regular(ADC1);
             /* Clear EOC bit. The GD32F103 does not automatically reset it on ADC read. */
             ADC_SR(ADC1) &= ~ADC_SR_EOC;
-            monitor_ticks = 0;
+            monitor_ticks = VREFINT_INTERVAL;
 
             /* Now compare the reference against the known good range */
             if (ref > ADC_VREFINT_MAX || ref < ADC_VREFINT_MIN) {
@@ -101,10 +101,11 @@ void sys_tick_handler(void)
                 morse("TPWR ERROR", true);
             }
         } else {
-            ++monitor_ticks;
+            --monitor_ticks;
         }
     } else {
-        monitor_ticks = 0;
+        /* allow for extra delay before testing the voltage for the first time */
+        monitor_ticks = 2 * VREFINT_INTERVAL;
     }
 #endif
 }
