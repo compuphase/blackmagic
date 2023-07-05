@@ -664,8 +664,7 @@ static void cortexm_regs_write(target *t, const void *data)
     }
 }
 
-int cortexm_mem_write_sized(
-    target *t, target_addr dest, const void *src, size_t len, enum align align)
+int cortexm_mem_write_sized(target *t, target_addr dest, const void *src, size_t len, enum align align)
 {
     cortexm_cache_clean(t, dest, len, true);
     adiv5_mem_write_sized(cortexm_ap(t), dest, src, len, align);

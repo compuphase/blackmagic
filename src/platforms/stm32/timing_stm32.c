@@ -80,15 +80,13 @@ void sys_tick_handler(void)
          * pulled below 3.3V. In either case, for safety, disable tpwr and set
          * a morse error of "TPWR ERROR"
          */
-        /* On the tick prior to the one where we sample, start the bandgap conversion */
         if (monitor_ticks == 1) {
+            /* On the tick prior to the one where we sample, start the bandgap conversion */
             uint8_t channel = ADC_CHANNEL_VREF;
             adc_set_regular_sequence(ADC1, 1, &channel);
             adc_start_conversion_direct(ADC1);
-        }
-
-        /* When count exhausted, check the result of bandgap conversion */
-        if (monitor_ticks == 0) {
+        } else if (monitor_ticks == 0) {
+            /* When count exhausted, check the result of bandgap conversion */
             uint32_t ref = adc_read_regular(ADC1);
             /* Clear EOC bit. The GD32F103 does not automatically reset it on ADC read. */
             ADC_SR(ADC1) &= ~ADC_SR_EOC;
@@ -100,11 +98,14 @@ void sys_tick_handler(void)
                 platform_target_set_power(false);
                 morse("TPWR ERROR", true);
             }
-        } else {
-            --monitor_ticks;
         }
+        --monitor_ticks;
     } else {
-        /* allow for extra delay before testing the voltage for the first time */
+        /* Force clear EOC bit, if TPWR is disabled between start of conversion
+           and reading the conversion */
+        if (monitor_ticks == 0)
+            ADC_SR(ADC1) &= ~ADC_SR_EOC;
+        /* Allow for extra delay before testing the voltage for the first time */
         monitor_ticks = 2 * VREFINT_INTERVAL;
     }
 #endif

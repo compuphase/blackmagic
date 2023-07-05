@@ -94,20 +94,19 @@ const struct command_s cmd_list[] = {
     {"rtt", cmd_rtt, "enable|disable|status|channel 0..15|ident (str)|cblock|ram|poll maxms minms maxerr"},
 #endif
 #ifdef PLATFORM_HAS_TRACESWO
-#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+#  if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
     {"traceswo", cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode channel ...)" },
-#else
+#  else
     {"traceswo", cmd_traceswo, "Start trace capture, Manchester mode: (decode channel ...)" },
-#endif
+#  endif
 #endif
     {"heapinfo", cmd_heapinfo, "Set semihosting heapinfo" },
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
     {"debug_bmp", cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
 #endif
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
-	{"convert_tdio", cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
-	{"set_srst", cmd_set_srst,"Set output state of SRST pin (enable|disable)"},
-#endif
+    {"convert_tdio", cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
+    {"set_srst", cmd_set_srst,"Set output state of SRST pin (enable|disable)"},
 #endif
     {NULL, NULL, NULL}
 };
@@ -493,19 +492,111 @@ static bool cmd_target_power(target *t, int argc, const char **argv)
         gdb_outf("Target Power: %s\n", platform_target_get_power() ? "enabled" : "disabled");
     } else if (argc == 2) {
         bool want_enable = false;
+        bool is_enabled = platform_target_get_power();
         if (parse_enable_or_disable(argv[1], &want_enable)) {
-            if (want_enable
-                && !platform_target_get_power()
+            if (want_enable && !is_enabled
                 && platform_target_voltage_sense() > POWER_CONFLICT_THRESHOLD) {
                 /* want to enable target power, but VREF > 0.5V sensed -> cancel */
                 gdb_outf("Target already powered (%s)\n", platform_target_voltage());
-            } else {
+            } else if (want_enable != is_enabled) {
                 platform_target_set_power(want_enable);
                 gdb_outf("%s target power\n", want_enable ? "Enabling" : "Disabling");
+            } else {
+                /* no change -> different reply */
+                gdb_outf("Target Power: %s\n", is_enabled ? "enabled" : "disabled");
             }
         }
     } else {
         gdb_outf("Unrecognized command format\n");
+    }
+    return true;
+}
+#endif
+
+#ifdef ENABLE_RTT
+static const char *on_or_off(const bool value)
+{
+    return value ? "on" : "off";
+}
+
+static bool cmd_rtt(target *t, int argc, const char **argv)
+{
+    (void)t;
+    const size_t command_len = argc > 1 ? strlen(argv[1]) : 0;
+    if (argc == 1 || (argc == 2 && strncmp(argv[1], "enabled", command_len) == 0)) {
+        rtt_enabled = true;
+        rtt_found = false;
+        memset(rtt_channel, 0, sizeof(rtt_channel));
+    } else if (argc == 2 && strncmp(argv[1], "disabled", command_len) == 0) {
+        rtt_enabled = false;
+        rtt_found = false;
+    } else if (argc == 2 && strncmp(argv[1], "status", command_len) == 0) {
+        gdb_outf("rtt: %s found: %s ident: ", on_or_off(rtt_enabled), rtt_found ? "yes" : "no");
+        if (rtt_ident[0] == '\0')
+            gdb_out("off");
+        else
+            gdb_outf("\"%s\"", rtt_ident);
+        gdb_outf(" halt: %s", on_or_off(target_mem_access_needs_halt(t)));
+        gdb_out(" channels: ");
+        if (rtt_auto_channel)
+            gdb_out("auto ");
+        for (size_t i = 0; i < MAX_RTT_CHAN; i++) {
+            if (rtt_channel_enabled[i])
+                gdb_outf("%" PRIu32 " ", (uint32_t)i);
+        }
+        if (rtt_flag_ram)
+            gdb_outf("ram: 0x%08" PRIx32 " 0x%08" PRIx32, rtt_ram_start, rtt_ram_end);
+        gdb_outf(
+            "\nmax poll ms: %u min poll ms: %u max errs: %u\n", rtt_max_poll_ms, rtt_min_poll_ms, rtt_max_poll_errs);
+    } else if (argc >= 2 && strncmp(argv[1], "channel", command_len) == 0) {
+        /* mon rtt channel switches to auto rtt channel selection
+           mon rtt channel number... selects channels given */
+        for (size_t i = 0; i < MAX_RTT_CHAN; i++)
+            rtt_channel_enabled[i] = false;
+        if (argc == 2)
+            rtt_auto_channel = true;
+        else {
+            rtt_auto_channel = false;
+            for (size_t i = 2; i < (size_t)argc; ++i) {
+                const uint32_t channel = strtoul(argv[i], NULL, 0);
+                if (channel < MAX_RTT_CHAN)
+                    rtt_channel_enabled[channel] = true;
+            }
+        }
+    } else if (argc == 2 && strncmp(argv[1], "ident", command_len) == 0) {
+        rtt_ident[0] = '\0';
+    } else if (argc == 2 && strncmp(argv[1], "poll", command_len) == 0) {
+        gdb_outf("%u %u %u\n", rtt_max_poll_ms, rtt_min_poll_ms, rtt_max_poll_errs);
+    } else if (argc == 2 && strncmp(argv[1], "cblock", command_len) == 0) {
+        gdb_outf("cbaddr: 0x%x\n", rtt_cbaddr);
+        gdb_out("ch ena i/o buffer@      size   head   tail flag\n");
+        for (uint32_t i = 0; i < rtt_num_up_chan + rtt_num_down_chan; ++i) {
+            gdb_outf("%2" PRIu32 "   %c %s 0x%08" PRIx32 " %6" PRIu32 " %6" PRIu32 " %6" PRIu32 " %4" PRIu32 "\n", i,
+                rtt_channel_enabled[i] ? 'y' : 'n', i < rtt_num_up_chan ? "out" : "in ", rtt_channel[i].buf_addr,
+                rtt_channel[i].buf_size, rtt_channel[i].head, rtt_channel[i].tail, rtt_channel[i].flag);
+        }
+    } else if (argc == 3 && strncmp(argv[1], "ident", command_len) == 0) {
+        strncpy(rtt_ident, argv[2], sizeof(rtt_ident));
+        rtt_ident[sizeof(rtt_ident) - 1U] = '\0';
+        for (size_t i = 0; i < sizeof(rtt_ident); i++) {
+            if (rtt_ident[i] == '_')
+                rtt_ident[i] = ' ';
+        }
+    } else if (argc == 2 && strncmp(argv[1], "ram", command_len) == 0) {
+        rtt_flag_ram = false;
+    } else if (argc == 4 && strncmp(argv[1], "ram", command_len) == 0) {
+        const int cnt1 = sscanf(argv[2], "%" SCNx32, &rtt_ram_start);
+        const int cnt2 = sscanf(argv[3], "%" SCNx32, &rtt_ram_end);
+        rtt_flag_ram = cnt1 == 1 && cnt2 == 1 && rtt_ram_end > rtt_ram_start;
+        if (!rtt_flag_ram)
+            gdb_out("address?\n");
+    } else if (argc == 5 && strncmp(argv[1], "poll", command_len) == 0) {
+        /* set polling params */
+        rtt_max_poll_ms = strtoul(argv[2], NULL, 0);
+        rtt_min_poll_ms = strtoul(argv[3], NULL, 0);
+        rtt_max_poll_errs = strtoul(argv[4], NULL, 0);
+    } else {
+        gdb_out("syntax error\n");
     }
     return true;
 }
@@ -593,32 +684,32 @@ static bool cmd_convert_tdio(target *t, int argc, const char **argv)
 {
         (void)t;
 
-	uint8_t val;
-	if (argc > 1) {
-		val = (!strcmp(argv[1], "enable")) ? true : false;
-		usbuart_convert_tdio(val);
-	} else {
-		gdb_outf("Convert_tdio: %s\n",(usbuart_convert_tdio_enabled()) ?
-				"enabled" : "disabled");
-	}
+    uint8_t val;
+    if (argc > 1) {
+        val = (!strcmp(argv[1], "enable")) ? true : false;
+        usbuart_convert_tdio(val);
+    } else {
+        gdb_outf("Convert_tdio: %s\n",(usbuart_convert_tdio_enabled()) ?
+                "enabled" : "disabled");
+    }
 
-	return true;
+    return true;
 }
 
 static bool cmd_set_srst(target *t, int argc, const char **argv)
 {
-	(void) t;
+    (void) t;
 
-	uint8_t val;
-	if (argc > 1) {
-		val = (!strcmp(argv[1], "enable")) ? true : false;
-		platform_srst_set_val(val);
-	} else {
-		gdb_outf("SRST: %s\n",(platform_srst_get_val()) ?
-				"enabled" : "disabled");
-	}
+    uint8_t val;
+    if (argc > 1) {
+        val = (!strcmp(argv[1], "enable")) ? true : false;
+        platform_srst_set_val(val);
+    } else {
+        gdb_outf("SRST: %s\n",(platform_srst_get_val()) ?
+                "enabled" : "disabled");
+    }
 
-	return true;
+    return true;
 }
 #endif
 

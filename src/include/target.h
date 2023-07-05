@@ -58,6 +58,7 @@ unsigned int target_idcode(target *t);
 bool target_mem_map(target *t, char *buf, size_t len);
 int target_mem_read(target *t, void *dest, target_addr src, size_t len);
 int target_mem_write(target *t, target_addr dest, const void *src, size_t len);
+bool target_mem_access_needs_halt(target *t);
 /* Flash memory access functions */
 bool target_flash_erase(target *t, target_addr addr, size_t len);
 bool target_flash_write(target *t, target_addr dest, const void *src, size_t len);

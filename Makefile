@@ -20,6 +20,9 @@ ifndef NO_LIBOPENCM3
 endif
 	$(Q)$(MAKE) $(MFLAGS) -C src
 
+all_platforms:
+	$(Q)$(MAKE) $(MFLAGS) -C src $@
+
 clean:
 ifndef NO_LIBOPENCM3
 	$(Q)$(MAKE) $(MFLAGS) -C libopencm3 $@

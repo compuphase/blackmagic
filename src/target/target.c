@@ -429,15 +429,23 @@ bool target_attached(target *t)
 
 /* Memory access functions */
 int target_mem_read(target *t, void *dest, target_addr src, size_t len)
-{   //TODO: returns true on error (counter-intuitive)
+{
     t->mem_read(t, dest, src, len);
-    return target_check_error(t);
+    return target_check_error(t); /* returns 0 on success, 1 on error */
 }
 
 int target_mem_write(target *t, target_addr dest, const void *src, size_t len)
-{   //TODO: returns true on error (counter-intuitive)
+{
     t->mem_write(t, dest, src, len);
-    return target_check_error(t);
+    return target_check_error(t); /* returns 0 on success, 1 on error */
+}
+
+/* target_mem_access_needs_halt() is true if the target needs to be halted during jtag memory access */
+bool target_mem_access_needs_halt(target *t)
+{
+    /* assume all arm processors allow memory access while running, and no riscv does. */
+    bool is_riscv = t && t->core && strstr(t->core, "RVDBG");
+    return is_riscv;
 }
 
 /* Register access functions */
