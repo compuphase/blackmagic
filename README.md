@@ -3,13 +3,16 @@
 **Nota Bene** This is a fork of the original [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic). It takes a parallel route to the original project, with a focus on stability and reliability. For documentation on the Black Magic Probe, please see the original project, or read my free e-book [Embedded Debugging with the Black Magic Probe](https://github.com/compuphase/Black-Magic-Probe-Book).
 
 ## Status
+At this point in development, the project should be considered in **beta stage**. There are no *known* bugs, but a number of functions still have to be verified.
+
 This branch is based on release 1.7.1 of the [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic) Since then, functionality and microcontroller support are being copied and/or adapted from the mainline release to this fork.
 
-At this moment, this *Roll-back* fork is on a par with official release 1.8.2, meaning that it runs on BMPv2.3 (hardware release 6) as well as BMPv2.1; and it includes the "fake thread" support needed for GDB 11 and later (see PR #1125 of the [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic)).
+At this moment, this *Roll-back* fork is on a par with official release 1.8.2, meaning that it runs on BMPv2.3 (hardware release 6) as well as BMPv2.1; and it includes the "fake thread" support needed for GDB 11 and later (see [PR #1125](https://github.com/blackmagic-debug/blackmagic/pull/1125) of the official project).
 
 In addition to the above, this fork features:
 * More detailed and more extensive support for microcontrollers in the LPC family (by NXP), such as support for the LPC11Exx series and the LPC18xx series. This release also reports *accurate* sizes for Flash and SRAM, for the LPC family.
-* Correct scheduling of driving/polling `SWDIO` relative to `SWCLK` and in regard to set-up and hold times (this is my own implementation, not based on PR #1220 of the [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic), which is *still* not entirely correct).
+* Correct scheduling of driving/polling `SWDIO` relative to `SWCLK` and in regard to set-up and hold times (this is my own implementation, not based on [PR #1220](https://github.com/blackmagic-debug/blackmagic/pull/1220) of the official project, which is *still* not entirely correct).
+* Protection against *power backfeeding* through `tpwr` (when `tpwr` is enabled and the target itself is also self-powered), is merged from mainline ([PR #1434](https://github.com/blackmagic-debug/blackmagic/pull/1434)), with corrections.
 
 **Nota Bene**: This fork focuses on the *native* and "*hosted*" platforms. Other platforms are not regularly checked.
 
