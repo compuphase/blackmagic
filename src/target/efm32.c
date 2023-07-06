@@ -648,7 +648,7 @@ bool efm32_probe(target *t)
 			device->name, part_number, flash_kib, device->description);
 
 	/* Setup Target */
-	t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
+	t->target_options |= CORTEXM_TOPT_INHIBIT_NRST;
 	t->driver = priv_storage->efm32_variant_string;
 	tc_printf(t, "flash size %d page size %d\n", flash_size, flash_page_size);
 	target_add_ram (t, SRAM_BASE, ram_size);
@@ -945,11 +945,11 @@ static bool efm32_cmd_bootloader(target *t, int argc, const char **argv)
  * * Bootloader (BL) if present
  *
  * Once the DEVICEERASE command has completed, the main AP will be
- * accessable again. If the device has a bootloader, it will attempt
+ * accessible again. If the device has a bootloader, it will attempt
  * to boot from this. If you have just unlocked the device the
  * bootloader could be anything (even garbage, if the bootloader
  * wasn't used before the DEVICEERASE). Therefore you may want to
- * connect under srst and use the bootloader command to disable it.
+ * connect under nRST and use the bootloader command to disable it.
  *
  * It is possible to lock the AAP itself by clearing the AAP Lock Word
  * (ALW). In this case the part is unrecoverable (unless you glitch

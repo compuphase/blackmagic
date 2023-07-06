@@ -52,8 +52,8 @@ static bool cmd_frequency(target *t, int argc, const char **argv);
 static bool cmd_targets(target *t, int argc, const char **argv);
 static bool cmd_morse(target *t, int argc, const char **argv);
 static bool cmd_halt_timeout(target *t, int argc, const char **argv);
-static bool cmd_connect_srst(target *t, int argc, const char **argv);
-static bool cmd_hard_srst(target *t, int argc, const char **argv);
+static bool cmd_connect_reset(target *t, int argc, const char **argv);
+static bool cmd_reset(target *t, int argc, const char **argv);
 static bool cmd_tdi_low_reset(target *t, int argc, const char **argv);
 #ifdef PLATFORM_HAS_POWER_SWITCH
 static bool cmd_target_power(target *t, int argc, const char **argv);
@@ -82,8 +82,8 @@ const struct command_s cmd_list[] = {
     {"targets", cmd_targets, "Display list of available targets" },
     {"morse", cmd_morse, "Display morse error message" },
     {"halt_timeout", cmd_halt_timeout, "Timeout (ms) to wait until Cortex-M is halted: (Default 2000)" },
-    {"connect_srst", cmd_connect_srst, "Configure connect under SRST: (enable|disable)" },
-    {"hard_srst", cmd_hard_srst, "Force a pulse on the hard SRST line - disconnects target" },
+    {"connect_rst", cmd_connect_reset, "Configure connect under reset: (enable|disable)" },
+    {"reset", cmd_reset, "Pulse the nRST line - disconnects target" },
     {"tdi_low_reset", cmd_tdi_low_reset,
         "Pulse nRST with TDI set low to attempt to wake certain targets up (eg LPC82x)"},
 #ifdef PLATFORM_HAS_POWER_SWITCH
@@ -111,8 +111,8 @@ const struct command_s cmd_list[] = {
 
 static const char command_format_error[] = "Unrecognized command format\n";
 
-bool connect_assert_srst;
-#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
+bool connect_assert_nrst;
+#if defined(PLATFORM_HAS_DEBUG) && PC_HOSTED == 0
 bool debug_bmp;
 #endif
 unsigned cortexm_wait_timeout = 2000; /* Timeout to wait for Cortex to react on halt command. */
@@ -216,8 +216,8 @@ static bool cmd_jtag_scan(target *t, int argc, const char **argv)
         irlens[argc-1] = 0;
     }
 
-    if(connect_assert_srst)
-        platform_srst_set_val(true); /* will be deasserted after attach */
+    if(connect_assert_nrst)
+        platform_nrst_set_val(true); /* will be deasserted after attach */
 
     int devs = 0;
     volatile struct exception e;
@@ -239,7 +239,7 @@ static bool cmd_jtag_scan(target *t, int argc, const char **argv)
 
     if(devs == 0) {
         platform_target_clk_output_enable(false);
-        platform_srst_set_val(false);
+        platform_nrst_set_val(false);
         gdb_out("JTAG device scan failed!\n");
         return false;
     }
@@ -259,8 +259,8 @@ bool cmd_swdp_scan(target *t, int argc, const char **argv)
 
     if (platform_target_voltage())
         gdb_outf("Target voltage: %s\n", platform_target_voltage());
-    if (connect_assert_srst)
-        platform_srst_set_val(true); /* will be deasserted after attach */
+    if (connect_assert_nrst)
+        platform_nrst_set_val(true); /* will be deasserted after attach */
 
     int devs = 0;
     volatile struct exception e;
@@ -282,7 +282,7 @@ bool cmd_swdp_scan(target *t, int argc, const char **argv)
 
     if (devs == 0) {
         platform_target_clk_output_enable(false);
-        platform_srst_set_val(false);
+        platform_nrst_set_val(false);
         gdb_out("SW-DP scan failed!\n");
         return false;
     }
@@ -301,8 +301,8 @@ bool cmd_auto_scan(target *t, int argc, const char **argv)
 
     if (platform_target_voltage())
         gdb_outf("Target voltage: %s\n", platform_target_voltage());
-    if (connect_assert_srst)
-        platform_srst_set_val(true); /* will be deasserted after attach */
+    if (connect_assert_nrst)
+        platform_nrst_set_val(true); /* will be deasserted after attach */
 
     uint32_t devs = 0;
     volatile struct exception e;
@@ -337,7 +337,7 @@ bool cmd_auto_scan(target *t, int argc, const char **argv)
 
     if (devs == 0) {
         platform_target_clk_output_enable(false);
-        platform_srst_set_val(false);
+        platform_nrst_set_val(false);
         gdb_out("auto scan failed!\n");
         return false;
     }
@@ -436,21 +436,21 @@ bool parse_enable_or_disable(const char *s, bool *out)
     return true;
 }
 
-static bool cmd_connect_srst(target *t, int argc, const char **argv)
+static bool cmd_connect_reset(target *t, int argc, const char **argv)
 {
     (void)t;
     bool print_status = false;
     if (argc == 1) {
         print_status = true;
     } else if (argc == 2) {
-        if (parse_enable_or_disable(argv[1], &connect_assert_srst))
+        if (parse_enable_or_disable(argv[1], &connect_assert_nrst))
             print_status = true;
     } else {
         gdb_out(command_format_error);
     }
 
     if (print_status)
-        gdb_outf("Assert SRST during connect: %s\n", connect_assert_srst ? "enabled" : "disabled");
+        gdb_outf("Assert nRST during connect: %s\n", connect_assert_nrst ? "enabled" : "disabled");
     return true;
 }
 
@@ -463,20 +463,22 @@ static bool cmd_halt_timeout(target *t, int argc, const char **argv)
     return true;
 }
 
-static bool cmd_hard_srst(target *t, int argc, const char **argv)
+static bool cmd_reset(target *t, int argc, const char **argv)
 {
     (void)t;
     (void)argc;
     (void)argv;
     target_list_free();
     if (argc == 1) {
-        platform_srst_set_val(true);
-        platform_delay(100);	/* 0.1 second delay on the reset pin */
-        platform_srst_set_val(false);
+        platform_nrst_set_val(true);
+        /* when asserting ~reset, the platform_nrst_set_val() function adds a
+		   short delay, so that reset stays low for a minimum period; there is
+		   thus no harm in immediately de-asserting ~reset */
+        platform_nrst_set_val(false);
     } else if (argc == 2) {
         bool assert_reset;
         if (parse_enable_or_disable(argv[1], &assert_reset))
-            platform_srst_set_val(assert_reset);
+            platform_nrst_set_val(assert_reset);
     } else {
         gdb_out(command_format_error);
     }
@@ -489,7 +491,7 @@ static bool cmd_tdi_low_reset(target *t, int argc, const char **argv)
     (void)argc;
     (void)argv;
     jtag_proc.jtagtap_next(true, false);
-    cmd_hard_srst(NULL, 0, NULL);
+    cmd_reset(NULL, 0, NULL);
     return true;
 }
 

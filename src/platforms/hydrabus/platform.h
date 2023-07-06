@@ -45,7 +45,7 @@
  * TCK = 	PC1 (SWCLK)
  * TDO = 	PC2 (input for TRACESWO)
  * TDI = 	PC3
- * nSRST = PC4 (nRST /RESET / System Reset)
+ * nRST = PC4 (nRST / ~RESET / System Reset)
  * nTRST = 	PC5 (Test Reset optional)
  *
  * USB VBUS detect:  PB13
@@ -70,8 +70,8 @@
 
 #define TRST_PORT	GPIOC
 #define TRST_PIN	GPIO5
-#define SRST_PORT	GPIOC
-#define SRST_PIN	GPIO4
+#define NRST_PORT	GPIOC
+#define NRST_PIN	GPIO4
 
 #define LED_PORT	GPIOA
 #define LED_PORT_UART	GPIOA

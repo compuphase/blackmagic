@@ -18,9 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* This file implements the platform specific functions for the STM32
- * implementation.
- */
+/* This file implements the platform specific functions for the Hydrabus implementation. */
 
 #include "general.h"
 #include "cdcacm.h"
@@ -39,9 +37,9 @@ jmp_buf fatal_error_jmpbuf;
 
 void platform_init(void)
 {
-	/* Check the USER button*/
+	/* Check the USER button */
 	rcc_peripheral_enable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_IOPAEN);
-	if(gpio_get(GPIOA, GPIO0)) {
+	if (gpio_get(GPIOA, GPIO0)) {
 		platform_request_boot();
 		scb_reset_core();
 	}
@@ -80,8 +78,15 @@ void platform_init(void)
 	cdcacm_init();
 }
 
-void platform_srst_set_val(bool assert) { (void)assert; }
-bool platform_srst_get_val(void) { return false; }
+void platform_nrst_set_val(bool assert)
+{
+	(void)assert;
+}
+
+bool platform_nrst_get_val(void)
+{
+	return false;
+}
 
 const char *platform_target_voltage(void)
 {

@@ -88,8 +88,7 @@ the 2 jumper shortening the 4-pin connector like this:
 
 4: SWDIO
 
-5: nSRST (pulled high by on board target. Will reset with on board target
-   unpowered.
+5: nRST (pulled high by on board target. Will reset with on board target unpowered.
 
 6: SWO
 

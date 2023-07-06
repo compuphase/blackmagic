@@ -178,8 +178,8 @@ void platform_init(void)
 	gpio_clear(SWCLK_PORT, SWCLK_PIN);
 
 	gpio_config_input(TDO_PORT, TDO_PIN, 0);
-	gpio_config_output(SRST_PORT, SRST_PIN, GPIO_OUT_FLAG_DEFAULT_HIGH);
-	gpio_clear(SRST_PORT, SRST_PIN);
+	gpio_config_output(NRST_PORT, NRST_PIN, GPIO_OUT_FLAG_DEFAULT_HIGH);
+	gpio_clear(NRST_PORT, NRST_PIN);
 
 	/* setup uart led, disable by default*/
 	gpio_config_output(LED_PORT_UART, LED_UART, 0);//GPIO_OUT_FLAG_DEFAULT_HIGH);
@@ -197,24 +197,25 @@ void platform_init(void)
 	button_init();
 }
 
-uint8_t srst_state;
-void platform_srst_set_val(bool assert)
+static uint8_t nrst_state;
+void platform_nrst_set_val(bool assert)
 {
-	volatile int i;
-	if (!assert) {
-		gpio_clear(SRST_PORT, SRST_PIN);
-		for(i = 0; i < 10000; i++) asm("nop");
-		srst_state = 0;
+	//TODO test... (isn't this logic inverted? asserting ~reset should pull the pin low)
+	if (assert) {
+		gpio_set(NRST_PORT, NRST_PIN);
+		nrst_state = 1;
 	} else {
-		gpio_set(SRST_PORT, SRST_PIN);
-		srst_state = 1;
+		gpio_clear(NRST_PORT, NRST_PIN);
+		for (volatile int i = 0; i < 10000; i++) 
+			__asm__("nop");
+		nrst_state = 0;
 	}
 }
 
-bool platform_srst_get_val(void)
+bool platform_nrst_get_val(void)
 {
-	//return gpio_get(SRST_PORT, SRST_PIN) != 0;
-	return srst_state;
+	//return gpio_get(NRST_PORT, NRST_PIN) != 0;
+	return nrst_state;
 }
 
 bool platform_target_get_power(void)

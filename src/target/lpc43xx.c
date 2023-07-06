@@ -121,7 +121,7 @@ bool lpc43xx_probe(target *t)
         lpc43xx_add_flash(t, iap_entry, 1, 0, 0x1B000000, 0x10000, 0x2000);   /* bank B, 8 KiB sectors */
         lpc43xx_add_flash(t, iap_entry, 1, 8, 0x1B010000, 0x70000, 0x10000);  /* bank B, 64 KiB sectors */
         target_add_commands(t, lpc43xx_cmd_list, t->driver);
-        t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
+        t->target_options |= CORTEXM_TOPT_INHIBIT_NRST;
         return true;
 
     case 0x5906002B:  /* LPC43[S]x0 - M4/M0 no Flash 136K~200K SRAM - UM10503 Rev 2.3 2017, Ch 11.4.11 Table 106, note: single "CHIP ID" for a group of MCUs with different memory sizes */
@@ -131,7 +131,7 @@ bool lpc43xx_probe(target *t)
         target_add_ram(t, 0x10018000, 0x08000); /* second SRAM bank: 32 KiB (consecutive to first bank) */
         target_add_ram(t, 0x10080000, 0x12000); /* third SRAM bank: up to 72 KiB */
         target_add_commands(t, lpc43xx_noflash_cmd_list, t->driver);
-        t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
+        t->target_options |= CORTEXM_TOPT_INHIBIT_NRST;
         return true;
     }
 

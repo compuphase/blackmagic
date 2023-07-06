@@ -60,10 +60,10 @@ cable_desc_t cable_desc[] = {
 		.init.data_low = PIN6, /* PULL nRST high*/
 		.bb_swdio_in_port_cmd = GET_BITS_LOW,
 		.bb_swdio_in_pin = MPSSE_CS,
-		.assert_srst.data_low   = ~PIN6,
-		.assert_srst.ddr_low    =  PIN6,
-		.deassert_srst.data_low =  PIN6,
-		.deassert_srst.ddr_low  = ~PIN6,
+		.assert_nrst.data_low   = ~PIN6,
+		.assert_nrst.ddr_low    =  PIN6,
+		.deassert_nrst.data_low =  PIN6,
+		.deassert_nrst.ddr_low  = ~PIN6,
 		.description = "FLOSS-JTAG",
 		.name = "flossjtag"
 	},
@@ -83,10 +83,10 @@ cable_desc_t cable_desc[] = {
 		.init.ddr_low  = PIN4, /* Pull up pin 4 */
 		.mpsse_swd_read.set_data_low  = MPSSE_DO,
 		.mpsse_swd_write.set_data_low = MPSSE_DO,
-		.assert_srst.data_low   = ~PIN6,
-		.assert_srst.ddr_low    =  PIN6,
-		.deassert_srst.data_low =  PIN6,
-		.deassert_srst.ddr_low  = ~PIN6,
+		.assert_nrst.data_low   = ~PIN6,
+		.assert_nrst.ddr_low    =  PIN6,
+		.deassert_nrst.data_low =  PIN6,
+		.deassert_nrst.ddr_low  = ~PIN6,
 		.target_voltage_cmd  = GET_BITS_LOW,
 		.target_voltage_pin  = PIN4, /* Always read as target voltage present.*/
 		.description = "USBMATE",
@@ -113,9 +113,9 @@ cable_desc_t cable_desc[] = {
 		 * SWD not possible.
 		 * PIN4 low enables buffers
 		 * PIN5 Low indicates VRef applied
-		 * PIN6 reads back SRST
-		 * CBUS PIN1 Sets SRST
-		 * CBUS PIN2 low drives SRST
+		 * PIN6 reads back nRST
+		 * CBUS PIN1 Sets nRST
+		 * CBUS PIN2 low drives nRST
 		 */
 		.vendor = 0x0403,
 		.product = 0x6010,
@@ -123,10 +123,10 @@ cable_desc_t cable_desc[] = {
 		.init.ddr_low = PIN4,
 		.init.data_high = PIN4 | PIN3 | PIN2,
 		.init.ddr_high = PIN4 | PIN3 | PIN2 | PIN1 | PIN0,
-		.assert_srst.data_high   = ~PIN3,
-		.deassert_srst.data_high =  PIN3,
-		.srst_get_port_cmd = GET_BITS_LOW,
-		.srst_get_pin = PIN6,
+		.assert_nrst.data_high   = ~PIN3,
+		.deassert_nrst.data_high =  PIN3,
+		.nrst_get_port_cmd = GET_BITS_LOW,
+		.nrst_get_pin = PIN6,
 		.description = "FTDIJTAG",
 		.name = "ftdijtag"
 	},
@@ -151,10 +151,10 @@ cable_desc_t cable_desc[] = {
 		.init.data_low = PIN6 | PIN5,
 		.init.ddr_low  = PIN6 | PIN5,
 		.init.data_high = PIN1 | PIN2,
-		.assert_srst.data_high     = ~PIN1,
-		.assert_srst.ddr_high      =  PIN1,
-		.deassert_srst.data_high   =  PIN1,
-		.deassert_srst.ddr_high    = ~PIN1,
+		.assert_nrst.data_high     = ~PIN1,
+		.assert_nrst.ddr_high      =  PIN1,
+		.deassert_nrst.data_high   =  PIN1,
+		.deassert_nrst.ddr_high    = ~PIN1,
 		.mpsse_swd_read.clr_data_low  = PIN5 | PIN6,
 		.mpsse_swd_write.set_data_low = PIN5,
 		.mpsse_swd_write.clr_data_low = PIN6,
@@ -177,8 +177,8 @@ cable_desc_t cable_desc[] = {
 		 * => SWD not possible.
 		 * DBUS PIN4 / JTAGOE low enables buffers
 		 * DBUS PIN5 / TRST high drives nTRST low OC
-		 * DBUS PIN6 / RST high drives nSRST low OC
-		 * CBUS PIN0 reads back SRST
+		 * DBUS PIN6 / RST high drives nRST low OC
+		 * CBUS PIN0 reads back nRST
 		 */
 		.vendor = 0x0403,
 		.product = 0xbdc8,
@@ -187,10 +187,10 @@ cable_desc_t cable_desc[] = {
 		.init.data_low  = 0,
 		.init.ddr_low  = PIN6 | PIN5 | PIN4,
 		.init.ddr_high = PIN2, /* ONE LED */
-		.assert_srst.data_low = PIN6,
-		.deassert_srst.data_low = ~PIN6,
-		.srst_get_port_cmd = GET_BITS_HIGH,
-		.srst_get_pin = PIN0,
+		.assert_nrst.data_low = PIN6,
+		.deassert_nrst.data_low = ~PIN6,
+		.nrst_get_port_cmd = GET_BITS_HIGH,
+		.nrst_get_pin = PIN0,
 		.name = "turtelizer",
 		.description = "Turtelizer JTAG/RS232 Adapter"
 	},
@@ -450,33 +450,33 @@ static void libftdi_set_data(data_desc_t* data)
 	}
 }
 
-void libftdi_srst_set_val(bool assert)
+void libftdi_nrst_set_val(bool assert)
 {
 	if (assert)
-		libftdi_set_data(&active_cable->assert_srst);
+		libftdi_set_data(&active_cable->assert_nrst);
 	else
-		libftdi_set_data(&active_cable->deassert_srst);
+		libftdi_set_data(&active_cable->deassert_nrst);
 }
 
-bool libftdi_srst_get_val(void)
+bool libftdi_nrst_get_val(void)
 {
-	uint8_t cmd[1] = {0};
+	uint8_t cmd;
 	uint8_t pin = 0;
-	if (active_cable->srst_get_port_cmd && active_cable->srst_get_pin) {
-		cmd[0]= active_cable->srst_get_port_cmd;
-		pin   =  active_cable->srst_get_pin;
-	} else if (active_cable->assert_srst.data_low &&
-			   active_cable->assert_srst.ddr_low) {
-		cmd[0]= GET_BITS_LOW;
-		pin   = active_cable->assert_srst.data_low;
-	} else if (active_cable->assert_srst.data_high &&
-			   active_cable->assert_srst.ddr_high) {
-		cmd[0]= GET_BITS_HIGH;
-		pin   = active_cable->assert_srst.data_high;
-	}else {
+	if (active_cable->nrst_get_port_cmd && active_cable->nrst_get_pin) {
+		cmd = active_cable->nrst_get_port_cmd;
+		pin =  active_cable->nrst_get_pin;
+	} else if (active_cable->assert_nrst.data_low &&
+			   active_cable->assert_nrst.ddr_low) {
+		cmd = GET_BITS_LOW;
+		pin = active_cable->assert_nrst.data_low;
+	} else if (active_cable->assert_nrst.data_high &&
+			   active_cable->assert_nrst.ddr_high) {
+		cmd = GET_BITS_HIGH;
+		pin = active_cable->assert_nrst.data_high;
+	} else {
 		return false;
 	}
-	libftdi_buffer_write(cmd, 1);
+	libftdi_buffer_write(&cmd, 1);
 	uint8_t data[1];
 	libftdi_buffer_read(data, 1);
 	bool res = false;

@@ -122,7 +122,7 @@ bool lpc546xx_probe(target *t)
         */
         target_add_ram(t, 0x20000000, 0x28000);
         target_add_commands(t, lpc546xx_cmd_list, t->driver);
-        t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
+        t->target_options |= CORTEXM_TOPT_INHIBIT_NRST;
         break;
 
     default:

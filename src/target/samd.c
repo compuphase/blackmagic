@@ -227,7 +227,7 @@ static const struct samd_part samd_l22_parts[] = {
 void samd_reset(target *t)
 {
     /**
-     * SRST is not asserted here as it appears to reset the adiv5
+     * nRST is not asserted here as it appears to reset the adiv5
      * logic, meaning that subsequent adiv5_* calls PLATFORM_FATAL_ERROR.
      *
      * This is ok as normally you can just connect the debugger and go,
@@ -238,14 +238,14 @@ void samd_reset(target *t)
      * See the SAM D20 datasheet §12.6 Debug Operation for more
      * details.
      *
-     * jtagtap_srst(true);
-     * jtagtap_srst(false);
+     * jtagtap_nrst(true);
+     * jtagtap_nrst(false);
      */
 
     /* Read DHCSR here to clear S_RESET_ST bit before reset */
     target_mem_read32(t, CORTEXM_DHCSR);
 
-    /* Request system reset from NVIC: SRST doesn't work correctly */
+    /* Request system reset from NVIC: nRST doesn't work correctly */
     /* This could be VECTRESET: 0x05FA0001 (reset only core)
      *          or SYSRESETREQ: 0x05FA0004 (system reset)
      */
@@ -541,15 +541,13 @@ bool samd_probe(target *t)
     target_add_commands(t, samd_cmd_list, "SAMD");
 
     /* If we're not in reset here */
-    if (!platform_srst_get_val()) {
+    if (!platform_nrst_get_val()) {
         /* We'll have to release the target from
          * extended reset to make attach possible */
-        if (target_mem_read32(t, SAMD_DSU_CTRLSTAT) &
-            SAMD_STATUSA_CRSTEXT) {
+        if (target_mem_read32(t, SAMD_DSU_CTRLSTAT) & SAMD_STATUSA_CRSTEXT) {
 
             /* Write bit to clear from extended reset */
-            target_mem_write32(t, SAMD_DSU_CTRLSTAT,
-                               SAMD_STATUSA_CRSTEXT);
+            target_mem_write32(t, SAMD_DSU_CTRLSTAT, SAMD_STATUSA_CRSTEXT);
         }
     }
 

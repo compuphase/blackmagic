@@ -57,7 +57,7 @@ int usbuart_debug_write(const char *buf, size_t len);
  * nTRST    = PB1  (output) [blackmagic]
  * PWR_BR   = PB1  (output) [blackmagic_mini] -- supply power to the target, active low
  * TMS_DIR  = PA1  (output) [blackmagic_mini v2.1] -- choose direction of the TCK pin, input low, output high
- * SRST     = PA2  (output) -- Hardware 5 and older
+ * nRST     = PA2  (output) -- Hardware 5 and older
  *          = PA9  (output) -- Hardware 6 and newer
  * TDI      = PA3  (output) -- Hardware 5 and older
  *          = PA7  (output) -- Hardware 6 and newer
@@ -69,7 +69,7 @@ int usbuart_debug_write(const char *buf, size_t len);
  *                             Hardware 4 has a normally open jumper between TDO and TRACESWO
  *                             Hardware 5 has hardwired connection between TDO and TRACESWO
  *          = PA10 (input)  -- Hardware 6 and newer
- * SRST_SENSE=PA7  (input)  -- Hardware 5 and older (the SRST_OUT sense line)
+ * nRST_SENSE=PA7  (input)  -- Hardware 5 and older (the NRST_OUT sense line)
  *          = PC13 (input)  -- Hardware 6 and newer
  *
  * USB_PU   = PA8  (output)
@@ -128,10 +128,10 @@ int usbuart_debug_write(const char *buf, size_t len);
 
 #define TRST_PORT       GPIOB
 #define TRST_PIN        GPIO1
-#define SRST_PORT       GPIOA
-#define SRST_PIN        HW_SWITCH(6, GPIO2, GPIO9)
-#define SRST_SENSE_PORT HW_SWITCH(6, GPIOA, GPIOC)
-#define SRST_SENSE_PIN  HW_SWITCH(6, GPIO7, GPIO13)
+#define NRST_PORT       GPIOA
+#define NRST_PIN        HW_SWITCH(6, GPIO2, GPIO9)
+#define NRST_SENSE_PORT HW_SWITCH(6, GPIOA, GPIOC)
+#define NRST_SENSE_PIN  HW_SWITCH(6, GPIO7, GPIO13)
 /*
  * These are the control output pin definitions for TPWR.
  * TPWR is sensed via PB0 by sampling ADC1's channel 8.

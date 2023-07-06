@@ -7,7 +7,7 @@ Connections
  * PC1: TCK/SWCLK
  * PC2: TDI
  * PC3: TDO/TRACESWO
- * PC4: SRST (NRST/System Reset)
+ * PC4: nRST (NRST / System Reset)
  * PC5: TRST (optional Test Reset)
 
 * Green Led(ULED/PA4): Indicator that system bootloader is entered via BMP

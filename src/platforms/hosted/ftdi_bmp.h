@@ -60,19 +60,19 @@ typedef struct cable_desc_s {
 	/* Bus data to allow bitbanging switched SWD write.
 	 * TMS is routed to MPSSE_CS.*/
 	pin_settings_t bb_swd_write;
-	/* dbus_data, dbus_ddr, cbus_data, cbus_ddr value to assert SRST.
+	/* dbus_data, dbus_ddr, cbus_data, cbus_ddr value to assert nRST.
 	 *	E.g. with CBUS Pin 1 low,
 	 *	give data_high = ~PIN1, ddr_high = PIN1 */
-	data_desc_t assert_srst;
-	/*  Bus_data, dbus_ddr, cbus_data, cbus_ddr value to release SRST.
+	data_desc_t assert_nrst;
+	/*  Bus_data, dbus_ddr, cbus_data, cbus_ddr value to release nRST.
 	 *	E.g. with CBUS Pin 1 floating with internal pull up,
 	 *	give data_high = PIN1, ddr_high = ~PIN1 */
-	data_desc_t deassert_srst;
-	/* Command to read back SRST. If 0, port from assert_srst is used*/
-	uint8_t srst_get_port_cmd;
-	/* PIN to read back as SRST. if 0 port from assert_srst is ised.
+	data_desc_t deassert_nrst;
+	/* Command to read back nRST. If 0, port from assert_nrst is used*/
+	uint8_t nrst_get_port_cmd;
+	/* PIN to read back as nRST. if 0 port from assert_nrst is ised.
 	*  Use PINX if active high, use Complement (~PINX) if active low*/
-	uint8_t srst_get_pin;
+	uint8_t nrst_get_pin;
 	/* Bbus data for pure MPSSE SWD read.
 	 * Use together with swd_write if by some bits on DBUS,
 	 * SWDIO can be routed to TDI and TDO.
@@ -114,8 +114,14 @@ void libftdi_jtagtap_tdi_tdo_seq(
 bool  libftdi_swd_possible(bool *do_mpsse, bool *direct_bb_swd) {return false;};
 void libftdi_max_frequency_set(uint32_t freq) {};
 uint32_t libftdi_max_frequency_get(void) {return 0;};
-void libftdi_srst_set_val(bool assert){};
-bool libftdi_srst_get_val(void) { return false;};
+void libftdi_nrst_set_val(bool assert)
+{
+    (void)assert;
+}
+bool libftdi_rst_get_val(void)
+{
+    return false;
+}
 # pragma GCC diagnostic pop
 #else
 #include <ftdi.h>
@@ -136,8 +142,8 @@ void libftdi_jtagtap_tdi_tdo_seq(
 bool  libftdi_swd_possible(bool *do_mpsse, bool *direct_bb_swd);
 void libftdi_max_frequency_set(uint32_t freq);
 uint32_t libftdi_max_frequency_get(void);
-void libftdi_srst_set_val(bool assert);
-bool libftdi_srst_get_val(void);
+void libftdi_nrst_set_val(bool assert);
+bool libftdi_nrst_get_val(void);
 #endif
 
 #define MPSSE_SK 1

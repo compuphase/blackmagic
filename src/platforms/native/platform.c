@@ -177,25 +177,25 @@ void platform_init(void)
 
     gpio_set_mode(LED_PORT, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, LED_UART | LED_IDLE_RUN | LED_ERROR);
 
-    /* Enable SRST output. Original uses a NPN to pull down, so setting the
+    /* Enable nRST output. Original uses a NPN to pull down, so setting the
      * output HIGH asserts. Mini is directly connected so use open drain output
      * and set LOW to assert.
      */
-    platform_srst_set_val(false);
-    gpio_set_mode(SRST_PORT, GPIO_MODE_OUTPUT_50_MHZ,
+    platform_nrst_set_val(false);
+    gpio_set_mode(NRST_PORT, GPIO_MODE_OUTPUT_50_MHZ,
             (((platform_hwversion() == 0) ||
               (platform_hwversion() >= 3))
              ? GPIO_CNF_OUTPUT_PUSHPULL
              : GPIO_CNF_OUTPUT_OPENDRAIN),
-            SRST_PIN);
+            NRST_PIN);
     /* FIXME: Gareth, Esden, what versions need this fix? */
     if (platform_hwversion() < 3) {
         /* FIXME: This pin in intended to be input, but the TXS0108 fails
          * to release the device from reset if this floats. */
-        gpio_set_mode(SRST_SENSE_PORT, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, SRST_SENSE_PIN);
+        gpio_set_mode(NRST_SENSE_PORT, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, NRST_SENSE_PIN);
     } else {
-        gpio_set(SRST_SENSE_PORT, SRST_SENSE_PIN);
-        gpio_set_mode(SRST_SENSE_PORT, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, SRST_SENSE_PIN);
+        gpio_set(NRST_SENSE_PORT, NRST_SENSE_PIN);
+        gpio_set_mode(NRST_SENSE_PORT, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, NRST_SENSE_PIN);
     }
     /* Enable internal pull-up on PWR_BR so that we don't drive
        TPWR locally or inadvertently supply power to the target. */
@@ -228,13 +228,13 @@ void platform_init(void)
     setup_vbus_irq();
 }
 
-void platform_srst_set_val(bool assert)
+void platform_nrst_set_val(bool assert)
 {
     gpio_set(TMS_PORT, TMS_PIN);
     if (platform_hwversion() == 0 || platform_hwversion() >= 3)
-        gpio_set_val(SRST_PORT, SRST_PIN, assert);
+        gpio_set_val(NRST_PORT, NRST_PIN, assert);
     else
-        gpio_set_val(SRST_PORT, SRST_PIN, !assert);
+        gpio_set_val(NRST_PORT, NRST_PIN, !assert);
 
     if (assert) {
         for(volatile int i = 0; i < 10000; i++)
@@ -242,14 +242,13 @@ void platform_srst_set_val(bool assert)
     }
 }
 
-bool platform_srst_get_val(void)
+bool platform_nrst_get_val(void)
 {
     if (platform_hwversion() == 0)
-        return gpio_get(SRST_SENSE_PORT, SRST_SENSE_PIN) == 0;
-    else if (platform_hwversion() >= 3)
-        return gpio_get(SRST_SENSE_PORT, SRST_SENSE_PIN) != 0;
-    else
-        return gpio_get(SRST_PORT, SRST_PIN) == 0;
+        return gpio_get(NRST_SENSE_PORT, NRST_SENSE_PIN) == 0;
+    if (platform_hwversion() >= 3)
+        return gpio_get(NRST_SENSE_PORT, NRST_SENSE_PIN) != 0;
+    return gpio_get(NRST_PORT, NRST_PIN) == 0;
 }
 
 bool platform_target_get_power(void)

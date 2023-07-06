@@ -288,35 +288,42 @@ const char *platform_target_voltage(void)
     return NULL;
 }
 
-void platform_srst_set_val(bool assert)
+void platform_nrst_set_val(bool assert)
 {
     switch (info.bmp_type) {
     case BMP_TYPE_STLINKV2:
-        return stlink_srst_set_val(&info, assert);
+        stlink_nrst_set_val(&info, assert);
+        break;
     case BMP_TYPE_BMP:
-        return remote_srst_set_val(assert);
+        remote_nrst_set_val(assert);
+        break;
     case BMP_TYPE_JLINK:
-        return jlink_srst_set_val(&info, assert);
+        jlink_nrst_set_val(&info, assert);
+        break;
     case BMP_TYPE_LIBFTDI:
-        return libftdi_srst_set_val(assert);
+        libftdi_nrst_set_val(assert);
+        break;
     case BMP_TYPE_CMSIS_DAP:
-        return dap_srst_set_val(assert);
+        dap_nrst_set_val(assert);
+        break;
     default:
         break;
     }
 }
 
-bool platform_srst_get_val(void)
+bool platform_nrst_get_val(void)
 {
     switch (info.bmp_type) {
     case BMP_TYPE_BMP:
-        return remote_srst_get_val();
+        return remote_nrst_get_val();
     case BMP_TYPE_STLINKV2:
-        return stlink_srst_get_val();
+        return stlink_nrst_get_val();
     case BMP_TYPE_JLINK:
-        return jlink_srst_get_val(&info);
+        return jlink_nrst_get_val(&info);
     case BMP_TYPE_LIBFTDI:
-        return libftdi_srst_get_val();
+        return libftdi_nrst_get_val();
+    case BMP_TYPE_CMSIS_DAP:
+        return dap_nrst_get_val();
     default:
         break;
     }

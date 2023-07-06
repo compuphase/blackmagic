@@ -78,8 +78,8 @@ extern uint32_t swd_delay_cnt;
 #define SWCLK_PORT	PORTA
 #define SWCLK_PIN	TCK_PIN
 
-#define SRST_PORT	PORTA
-#define SRST_PIN	GPIO7
+#define NRST_PORT	PORTA
+#define NRST_PIN	GPIO7
 
 #define LED_PORT_UART	PORTA
 #define LED_UART	GPIO12
@@ -124,10 +124,10 @@ extern uint32_t swd_delay_cnt;
 #define TRST_PIN	GPIO27
 #define PWR_BR_PORT	PORTA
 #define PWR_BR_PIN	GPIO28
-#define SRST_PORT	PORTA
-#define SRST_PIN	GPIO8
-#define SRST_SENSE_PORT	GPIOA
-#define SRST_SENSE_PIN	GPIO9
+#define NRST_PORT	PORTA
+#define NRST_PIN	GPIO8
+#define NRST_SENSE_PORT	GPIOA
+#define NRST_SENSE_PIN	GPIO9
 #define TRGT_SENSE	GPIO2
 
 #define LED_PORT	PORTA

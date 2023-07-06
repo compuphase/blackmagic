@@ -40,7 +40,7 @@
                 * PA14: TCK/SWCLK<br>
                 * PB3: TDO/TRACESWO<br>
                 * PB5: TRST<br>
-                * PB4: SRST<br>
+                * PB4: nRST<br>
         * USB USART
                 * PB6: USART1 TX
                 * PB7: USART1 RX
@@ -67,8 +67,8 @@
 
 #define TRST_PORT GPIOB
 #define TRST_PIN GPIO5
-#define SRST_PORT GPIOB
-#define SRST_PIN GPIO4
+#define NRST_PORT GPIOB
+#define NRST_PIN GPIO4
 
 #define PWR_BR_PORT GPIOB
 #define PWR_BR_PIN GPIO8
@@ -110,12 +110,12 @@
  * LED3 = 	PD15	(Blue LED   : Bootloader active)
  *
  * nTRST = 	PC1
- * SRST_OUT =   PC8
+ * nRST_OUT = PC8
  * TDI = 	PC2
  * TMS = 	PC4 (input for SWDP)
  * TCK = 	PC5/SWCLK
  * TDO = 	PC6 (input for TRACESWO
- * nSRST =
+ * nRST =
  *
  * Force DFU mode button: PA0
  */
@@ -138,8 +138,8 @@
 
 #define TRST_PORT	GPIOC
 #define TRST_PIN	GPIO1
-#define SRST_PORT	GPIOC
-#define SRST_PIN	GPIO8
+#define NRST_PORT	GPIOC
+#define NRST_PIN	GPIO8
 
 #define LED_PORT	GPIOD
 #define LED_PORT_UART	GPIOD
