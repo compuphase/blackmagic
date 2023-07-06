@@ -14,7 +14,7 @@ In addition to the above, this fork features:
 * Correct scheduling of driving/polling `SWDIO` relative to `SWCLK` and in regard to set-up and hold times (this is my own implementation, not based on [PR #1220](https://github.com/blackmagic-debug/blackmagic/pull/1220) of the official project, which is *still* not entirely correct).
 * Protection against *power backfeeding* through `tpwr` (when `tpwr` is enabled and the target itself is also self-powered), is merged from mainline ([PR #1434](https://github.com/blackmagic-debug/blackmagic/pull/1434)), with corrections.
 
-**Nota Bene**: This fork focuses on the *native* and "*hosted*" platforms. Other platforms are not regularly checked.
+**Nota Bene**: This fork focuses on the *native* platform (original [Black Magic Probe](https://black-magic.org/)), the "*jeff*" platform ([Jeff Probe](https://flirc.tv/products/flirc-jeffprobe), a low-cost derivative), and the "*hosted*" platform (desktop application). Other platforms are not regularly checked.
 
 ## Why does this fork exist?
 The official release 1.7 has always run reliably in our production. *All* official releases after 1.7, however, are either unstable (releases 1.8.x) or broken with regard to LPC microcontrollers. Shortly after the release of 1.7.1, project maintenance moved to a new team (at 1BitSquared), and I am not comfortable with the "move fast and break things" mentality of the new team.
