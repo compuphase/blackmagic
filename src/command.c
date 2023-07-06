@@ -70,7 +70,6 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
 static bool cmd_convert_tdio(target *t, int argc, const char **argv);
-static bool cmd_set_srst(target *t, int argc, const char **argv);
 #endif
 
 const struct command_s cmd_list[] = {
@@ -106,10 +105,11 @@ const struct command_s cmd_list[] = {
 #endif
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
     {"convert_tdio", cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
-    {"set_srst", cmd_set_srst,"Set output state of SRST pin (enable|disable)"},
 #endif
     {NULL, NULL, NULL}
 };
+
+static const char command_format_error[] = "Unrecognized command format\n";
 
 bool connect_assert_srst;
 #if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
@@ -446,7 +446,7 @@ static bool cmd_connect_srst(target *t, int argc, const char **argv)
         if (parse_enable_or_disable(argv[1], &connect_assert_srst))
             print_status = true;
     } else {
-        gdb_outf("Unrecognized command format\n");
+        gdb_out(command_format_error);
     }
 
     if (print_status)
@@ -469,8 +469,17 @@ static bool cmd_hard_srst(target *t, int argc, const char **argv)
     (void)argc;
     (void)argv;
     target_list_free();
-    platform_srst_set_val(true);
-    platform_srst_set_val(false);
+    if (argc == 1) {
+        platform_srst_set_val(true);
+        platform_delay(100);	/* 0.1 second delay on the reset pin */
+        platform_srst_set_val(false);
+    } else if (argc == 2) {
+        bool assert_reset;
+        if (parse_enable_or_disable(argv[1], &assert_reset))
+            platform_srst_set_val(assert_reset);
+    } else {
+        gdb_out(command_format_error);
+    }
     return true;
 }
 
@@ -507,7 +516,7 @@ static bool cmd_target_power(target *t, int argc, const char **argv)
             }
         }
     } else {
-        gdb_outf("Unrecognized command format\n");
+        gdb_out(command_format_error);
     }
     return true;
 }
@@ -596,7 +605,7 @@ static bool cmd_rtt(target *t, int argc, const char **argv)
         rtt_min_poll_ms = strtoul(argv[3], NULL, 0);
         rtt_max_poll_errs = strtoul(argv[4], NULL, 0);
     } else {
-        gdb_out("syntax error\n");
+        gdb_out(command_format_error);
     }
     return true;
 }
@@ -668,7 +677,7 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv)
             print_status = true;
         }
     } else {
-        gdb_outf("Unrecognized command format\n");
+        gdb_out(command_format_error);
     }
 
     if (print_status) {
@@ -682,32 +691,24 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv)
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
 static bool cmd_convert_tdio(target *t, int argc, const char **argv)
 {
-        (void)t;
+    (void)t;
 
-    uint8_t val;
-    if (argc > 1) {
-        val = (!strcmp(argv[1], "enable")) ? true : false;
-        usbuart_convert_tdio(val);
+    bool print_status = false;
+    if (argc == 1) {
+        print_status = true;
+    } else if (argc == 2) {
+        bool want_enable;
+        if (parse_enable_or_disable(argv[1], &want_enable)) {
+            usbuart_convert_tdio(want_enable);
+            print_status = true;
+        }
     } else {
-        gdb_outf("Convert_tdio: %s\n",(usbuart_convert_tdio_enabled()) ?
-                "enabled" : "disabled");
+        gdb_out(command_format_error);
     }
 
-    return true;
-}
-
-static bool cmd_set_srst(target *t, int argc, const char **argv)
-{
-    (void) t;
-
-    uint8_t val;
-    if (argc > 1) {
-        val = (!strcmp(argv[1], "enable")) ? true : false;
-        platform_srst_set_val(val);
-    } else {
-        gdb_outf("SRST: %s\n",(platform_srst_get_val()) ?
-                "enabled" : "disabled");
-    }
+    if (print_status)
+        gdb_outf("TDI/TDO mapping to TxD/RxD: %s\n",
+                 (usbuart_convert_tdio_enabled()) ? "enabled" : "disabled");
 
     return true;
 }

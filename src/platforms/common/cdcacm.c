@@ -78,7 +78,7 @@ static const struct usb_device_descriptor dev_desc = {
 	.bDeviceClass = 0xEF,		/* Miscellaneous Device */
 	.bDeviceSubClass = 2,		/* Common Class */
 	.bDeviceProtocol = 1,		/* Interface Association */
-#ifdef LM4F
+#if defined(SAMD21E17) || defined(LM4F)
 	.bMaxPacketSize0 = 64,		/*Fixed for icdi*/
 #else
 	.bMaxPacketSize0 = 32,
@@ -435,6 +435,8 @@ static void dfu_detach_complete(usbd_device *dev, struct usb_setup_data *req)
 	/* Reset core to enter bootloader */
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
 	scb_reset_core();
+#else
+	scb_reset_system();
 #endif
 }
 
@@ -524,7 +526,7 @@ static void cdcacm_set_config(usbd_device *dev, uint16_t wValue)
 	configured = wValue;
 
 	/* GDB interface */
-#if defined(STM32F4) || defined(LM4F)
+#if defined(STM32F4) || defined(LM4F) || defined(SAMD)
 	usbd_ep_setup(dev, CDCACM_GDB_ENDPOINT, USB_ENDPOINT_ATTR_BULK,
 	              CDCACM_PACKET_SIZE, gdb_usb_out_cb);
 #else
@@ -580,6 +582,7 @@ void cdcacm_init(void)
 
 	nvic_set_priority(USB_IRQ, IRQ_PRI_USB);
 	nvic_enable_irq(USB_IRQ);
+	usbd_disconnect(usbdev, false);
 }
 
 void USB_ISR(void)
