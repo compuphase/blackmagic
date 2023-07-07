@@ -3,6 +3,8 @@
  *
  * Copyright (C) 2012-2020  Black Sphere Technologies Ltd.
  * Written by Gareth McMullin <gareth@blacksphere.co.nz>,
+ * Copyright (C) 2022-2023 1BitSquared <info@1bitsquared.com>
+ * Modified by Rachel Mant <git@dragonmux.network>
  * Koen De Vleeschauwer and Uwe Bonnes
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,12 +21,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* This file implements debugging functionality specific to ARM
- * the Cortex-M3 core.  This should be generic to ARMv7-M as it is
- * implemented according to the "ARMv7-M Architectue Reference Manual",
- * ARM doc DDI0403C.
- *
- * Also supports Cortex-M0 / ARMv6-M
+/*
+ * This file implements debugging functionality specific ARM Cortex-M cores.
+ * This is be generic to both the ARMv6-M and ARMv7-M profiles as defined in
+ * the architecture TRMs with ARM document IDs DDI0419E and DDI0403C.
  */
 
 #include "general.h"
@@ -301,6 +301,9 @@ bool cortexm_probe(ADIv5_AP_t *ap)
     t->cpuid = target_mem_read32(t, CORTEXM_CPUID);
     uint32_t cpuid_partno = t->cpuid & CPUID_PARTNO_MASK;
     switch (cpuid_partno) {
+    case STAR_MC1:
+        t->core = "STAR-MC1";
+        break;
     case CORTEX_M33:
         t->core = "M33";
         break;
@@ -315,8 +318,7 @@ bool cortexm_probe(ADIv5_AP_t *ap)
         break;
     case CORTEX_M7:
         t->core = "M7";
-        if (((t->cpuid & CPUID_REVISION_MASK) == 0) &&
-            (t->cpuid & CPUID_PATCH_MASK) < 2) {
+        if ((t->cpuid & CPUID_REVISION_MASK) == 0 && (t->cpuid & CPUID_PATCH_MASK) < 2) {
             DEBUG_WARN("Silicon bug: Single stepping will enter pending "
                        "exception handler with this M7 core revision!\n");
         }
@@ -369,17 +371,44 @@ bool cortexm_probe(ADIv5_AP_t *ap)
     }
 
     /* Default vectors to catch */
-    priv->demcr = CORTEXM_DEMCR_TRCENA | CORTEXM_DEMCR_VC_HARDERR |
-            CORTEXM_DEMCR_VC_CORERESET;
+    priv->demcr = CORTEXM_DEMCR_TRCENA | CORTEXM_DEMCR_VC_HARDERR | CORTEXM_DEMCR_VC_CORERESET;
+
+    /*
+     * Some devices, such as the STM32F0, will not correctly
+     * respond to probes under reset. Therefore, if we're
+     * attempting to connect under reset, we should first write to
+     * the debug register to catch the reset vector so that we
+     * immediately halt when reset is released, then request a
+     * halt and release reset. This will prevent any user code
+     * from running on the target.
+     */
+    bool conn_reset = false;
+    if (platform_nrst_get_val()) {
+        conn_reset = true;
+
+        /* Request halt when reset is de-asseted */
+        target_mem_write32(t, CORTEXM_DEMCR, priv->demcr);
+        /* Force a halt */
+        cortexm_halt_request(t);
+        /* Release reset */
+        platform_nrst_set_val(false);
+        /* Poll for release from reset */
+        while (target_mem_read32(t, CORTEXM_DHCSR) & CORTEXM_DHCSR_S_RESET_ST)
+            {}
+    }
 
     /* Check cache type */
     uint32_t ctr = target_mem_read32(t, CORTEXM_CTR);
-    if ((ctr >> 29) == 4) {
+    if (ctr >> 29 == 4) {
         priv->has_cache = true;
         priv->dcache_minline = 4 << (ctr & 0xf);
     } else {
         target_check_error(t);
     }
+    
+    /* If we set the interrupt catch vector earlier, clear it. */
+    if (conn_reset)
+        target_mem_write32(t, CORTEXM_DEMCR, 0);
 
     switch (ap->ap_designer) {
     case AP_DESIGNER_FREESCALE:
@@ -427,9 +456,9 @@ bool cortexm_probe(ADIv5_AP_t *ap)
     case AP_DESIGNER_RASPBERRY:
         PROBE(rp_probe);
         break;
-	case AP_MANUFACTURER_RENESAS:
-		//TODO PROBE(renesas_probe);
-		break;
+    case AP_MANUFACTURER_RENESAS:
+        //TODO PROBE(renesas_probe);
+        break;
     default:
         if (ap->ap_designer != AP_DESIGNER_ARM) {
             /* Report unexpected designers */

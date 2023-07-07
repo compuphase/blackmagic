@@ -24,6 +24,7 @@
  * commands.
  */
 
+#include <ctype.h>
 #include "general.h"
 #include "exception.h"
 #include "command.h"
@@ -43,6 +44,9 @@
 #endif
 
 static bool cmd_version(target *t, int argc, const char **argv);
+#ifdef PLATFORM_HAS_PRINTSERIAL
+static bool cmd_serial(target *t, int argc, const char **argv);
+#endif
 static bool cmd_help(target *t, int argc, const char **argv);
 
 static bool cmd_jtag_scan(target *t, int argc, const char **argv);
@@ -74,37 +78,40 @@ static bool cmd_convert_tdio(target *t, int argc, const char **argv);
 
 const struct command_s cmd_list[] = {
     {"version", cmd_version, "Display firmware version info"},
+#ifdef PLATFORM_HAS_PRINTSERIAL
+    {"serial", cmd_serial, "Display probe hardware serial number"},
+#endif
     {"help", cmd_help, "Display help for monitor commands"},
     {"jtag_scan", cmd_jtag_scan, "Scan JTAG chain for devices" },
-    {"swdp_scan", cmd_swdp_scan, "Scan SW-DP for devices" },
+    {"swdp_scan", cmd_swdp_scan, "Scan SW-DP for devices: [target id]" },
     {"auto_scan", cmd_auto_scan, "Automatically scan all chain types for devices"},
-    {"frequency", cmd_frequency, "set minimum high and low times" },
+    {"frequency", cmd_frequency, "limit SWJ clock frequency: [frequency]" },
     {"targets", cmd_targets, "Display list of available targets" },
     {"morse", cmd_morse, "Display morse error message" },
-    {"halt_timeout", cmd_halt_timeout, "Timeout (ms) to wait until Cortex-M is halted: (Default 2000)" },
-    {"connect_rst", cmd_connect_reset, "Configure connect under reset: (enable|disable)" },
-    {"reset", cmd_reset, "Pulse the nRST line - disconnects target" },
+    {"halt_timeout", cmd_halt_timeout, "Timeout to wait until Cortex-M is halted: [timeout, default 2000ms]" },
+    {"connect_rst", cmd_connect_reset, "Configure connect under reset: [enable|disable]" },
+    {"reset", cmd_reset, "Pulse the nRST line - disconnects target: [pulse length (ms)|enable|disable])" },
     {"tdi_low_reset", cmd_tdi_low_reset,
         "Pulse nRST with TDI set low to attempt to wake certain targets up (eg LPC82x)"},
 #ifdef PLATFORM_HAS_POWER_SWITCH
-    {"tpwr", cmd_target_power, "Supplies power to the target: (enable|disable)"},
+    {"tpwr", cmd_target_power, "Supplies power to the target: [enable|disable]"},
 #endif
 #ifdef ENABLE_RTT
-    {"rtt", cmd_rtt, "enable|disable|status|channel 0..15|ident (str)|cblock|ram|poll maxms minms maxerr"},
+    {"rtt", cmd_rtt, "[enable|disable|status|channel [0..15]|ident [name]|cblock|ram|poll [maxms minms maxerr]]"},
 #endif
 #ifdef PLATFORM_HAS_TRACESWO
 #  if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
-    {"traceswo", cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode channel ...)" },
+    {"traceswo", cmd_traceswo, "Start trace capture, NRZ mode: [baudrate] [decode channel ...]" },
 #  else
-    {"traceswo", cmd_traceswo, "Start trace capture, Manchester mode: (decode channel ...)" },
+    {"traceswo", cmd_traceswo, "Start trace capture, Manchester mode: [decode channel ...]" },
 #  endif
 #endif
-    {"heapinfo", cmd_heapinfo, "Set semihosting heapinfo" },
-#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
-    {"debug_bmp", cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
+    {"heapinfo", cmd_heapinfo, "Set semihosting heapinfo: [heap_base heap_limit stack_base stack_limit]" },
+#if defined(PLATFORM_HAS_DEBUG) && PC_HOSTED == 0
+    {"debug_bmp", cmd_debug_bmp, "Output BMP \"debug\" strings to the secondary UART: [enable|disable]"},
 #endif
 #ifdef PLATFORM_HAS_UART_WHEN_SWDP
-    {"convert_tdio", cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions"},
+    {"convert_tdio", cmd_convert_tdio,"Switch TDI/O pins to UART TX/RX functions: [enable|disable]"},
 #endif
     {NULL, NULL, NULL}
 };
@@ -469,11 +476,15 @@ static bool cmd_reset(target *t, int argc, const char **argv)
     (void)argc;
     (void)argv;
     target_list_free();
-    if (argc == 1) {
+    int pulse_len_ms = -1;
+    if (argc == 2 && isdigit(argv[1][0]))
+        pulse_len_ms = strtol(argv[1], NULL, 0);
+    if (argc == 1 || pulse_len_ms > 0) {
         platform_nrst_set_val(true);
         /* when asserting ~reset, the platform_nrst_set_val() function adds a
-		   short delay, so that reset stays low for a minimum period; there is
-		   thus no harm in immediately de-asserting ~reset */
+           short delay, so that reset stays low for a minimum period if
+           pulse_len_ms is zero */
+        platform_delay(pulse_len_ms);
         platform_nrst_set_val(false);
     } else if (argc == 2) {
         bool assert_reset;
@@ -716,6 +727,18 @@ static bool cmd_convert_tdio(target *t, int argc, const char **argv)
 }
 #endif
 
+#ifdef PLATFORM_HAS_PRINTSERIAL
+bool cmd_serial(target *t, int argc, char **argv)
+{
+    (void) t;
+    (void) argc;
+    (void) argv;
+
+    print_serial();
+    return true;
+}
+#endif
+
 static bool cmd_heapinfo(target *t, int argc, const char **argv)
 {
     if (t == NULL) {
@@ -729,7 +752,7 @@ static bool cmd_heapinfo(target *t, int argc, const char **argv)
             heap_base, heap_limit, stack_base, stack_limit);
         target_set_heapinfo(t, heap_base, heap_limit, stack_base, stack_limit);
     } else {
-        gdb_outf("heapinfo heap_base heap_limit stack_base stack_limit\n");
+        gdb_out(command_format_error);
     }
     return true;
 }

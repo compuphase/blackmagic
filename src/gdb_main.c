@@ -24,8 +24,8 @@
  * Originally written for GDB 6.8, updated and tested with GDB 7.2.
  */
 
+#include <ctype.h>
 #include "general.h"
-#include "ctype.h"
 #include "hex_utils.h"
 #include "gdb_if.h"
 #include "gdb_packet.h"
@@ -214,7 +214,7 @@ int gdb_main_loop(struct target_controller *tc, bool in_syscall)
                 #ifdef ENABLE_RTT
                     if (rtt_enabled)
                         poll_rtt(cur_target);
-                #endif                  
+                #endif
             }
             SET_RUN_STATE(0);
 
