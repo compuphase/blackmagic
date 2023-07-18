@@ -53,9 +53,9 @@ static const struct {
 	{  0b00010101110111, 14}, // 'Z' --..
 };
 
-const char *morse_msg;
-static const char * volatile morse_ptr;
-static char morse_repeat;
+const char *morse_msg = NULL;
+static const char * volatile morse_ptr = NULL;
+static char morse_repeat = 0;
 
 void morse(const char *msg, char repeat)
 {

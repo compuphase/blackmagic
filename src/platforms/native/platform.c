@@ -40,6 +40,11 @@
 static void adc_init(void);
 static void setup_vbus_irq(void);
 
+static uint32_t adc_iref = 1489;    /* The internal voltage reference is 1.2V;
+                                       when VCC is 3.3V, the expected value for
+                                       adc_iref is 1489 (4095 * 1.2 / 3.3) */
+static uint32_t idle_timestamp = 0; /* timestamp of most recent idle processing */
+
 /* Starting with hardware version 4 we are storing the hardware version in the
  * flash option user Data1 byte.
  * The hardware version 4 was the transition version that had it's hardware
@@ -228,6 +233,43 @@ void platform_init(void)
     setup_vbus_irq();
 }
 
+/** platform_idle_processing() is called to regularly run code that has low
+ *  priority. It may be called at irregular intervals.
+ */
+void platform_idle_processing(void)
+{
+    uint32_t tstamp = platform_time_ms();
+    if (tstamp - idle_timestamp >= 100) {
+        /* 100 ms (or more) has passed, re-calibrate the ADC and sense the
+           voltage */
+        uint8_t channel = ADC_CHANNEL_VREF;
+        adc_set_regular_sequence(ADC1, 1, &channel);
+        adc_start_conversion_direct(ADC1);
+        /* Wait for end of conversion. */
+        while (!adc_eoc(ADC1))
+            {}
+        adc_iref = adc_read_regular(ADC1);
+        /* Clear EOC bit. The GD32F103 does not automatically reset it on ADC read. */
+        ADC_SR(ADC1) &= ~ADC_SR_EOC;
+
+        /* If the probe powers the target, now get the voltage and verify that
+           it is in range. */
+        if (platform_target_get_power()) {
+            uint32_t v = platform_target_voltage_sense();
+            if (v <= 31 || v >= 35) {
+                /* One of two things happened: backfeeding by the target that
+                   runs at a higher voltage than VCC, or the target drawing way
+                   too much current (making the voltage drop).
+                   So turn 'tpwr' off and set the morse blink pattern. */
+                platform_target_set_power(false);
+                morse("TPWR ERROR", true);
+            }
+        }
+
+        idle_timestamp = tstamp;
+    }
+}
+
 void platform_nrst_set_val(bool assert)
 {
     gpio_set(TMS_PORT, TMS_PIN);
@@ -255,13 +297,18 @@ bool platform_target_get_power(void)
 {
     if (platform_hwversion() > 0)
         return !gpio_get(PWR_BR_PORT, PWR_BR_PIN);
-    return 0;
+    return false;
 }
 
 void platform_target_set_power(bool power)
 {
-    if (platform_hwversion() > 0)
+    if (platform_hwversion() > 0) {
         gpio_set_val(PWR_BR_PORT, PWR_BR_PIN, !power);
+        /* Reset the timestamp so that (when enabling 'tpwr') the probe has the
+           time to stabilize power to the target before the first check for
+           overcurrent or backfeeding. */
+        idle_timestamp = platform_time_ms();
+    }
 }
 
 static void adc_init(void)
@@ -287,19 +334,17 @@ static void adc_init(void)
     adc_calibrate(ADC1);
 }
 
+/** platform_target_voltage_sense() returns the VREF voltage (except for
+ *  hardware version 1). The return value is in volt scaled by 10 (so 33 means
+ *  3.3V)
+ */
 uint32_t platform_target_voltage_sense(void)
 {
-    /* returns the voltage in volt scaled by 10 (so 33 means 3.3V), except
-     * for hardware version 1
-     * this function is only needed for implementations that allow the
-     * target to be powered from the debug probe
-     */
     if (platform_hwversion() == 0)
-        return 0;
+        return 0;   /* hardware version 1 reads as 0 */
 
     const uint8_t channel = 8;
     adc_set_regular_sequence(ADC1, 1, (uint8_t*)&channel);
-
     adc_start_conversion_direct(ADC1);
 
     /* Wait for end of conversion. */
@@ -309,7 +354,22 @@ uint32_t platform_target_voltage_sense(void)
     uint32_t val = adc_read_regular(ADC1); /* 0-4095 */
     /* Clear EOC bit. The GD32F103 does not automatically reset it on ADC read. */
     ADC_SR(ADC1) &= ~ADC_SR_EOC;
-    return (val * 99) / 8191;
+
+    /* The BMP has a 4k7/10k voltage divider on the VREF pin. The ADC returns a
+       value in the range 0..4095, where 4095 maps to VCC (typically 3.3V). Due
+       to the voltage divider, there is a multiplication factor of 1.47.
+       The next step is that VCC is calibrated from the internal reference (1.2V);
+       the ADC value of the internal reference is iref in the equation below:
+            VCC = 1.2 * 4095 / iref
+       The return value is scaled by 10, so the equation for the return value
+       is:
+            R = val * 10 * VCC * 1.47 / 4095
+        =>  R = val * 10 * (4095 * 1.2 / iref) * 1.47 / 4095
+        =>  R = (val * 10 * 1.47 * 1.2) / iref
+       For increased accuracy, we scale the numerator and denominator by 16.
+        =>  R = (val * 16 * 10 * 1.47 * 1.2) / (16 * iref)
+     */
+    return (val * 282 + (adc_iref << 3)) / (adc_iref << 4);
 }
 
 const char *platform_target_voltage(void)

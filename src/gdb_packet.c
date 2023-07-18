@@ -42,11 +42,18 @@ size_t gdb_getpacket(char *packet, size_t size)
             /* Spin waiting for a start of packet character - either a gdb
              * start ('$') or a BMP remote packet start ('!').
              */
-            do {
-                packet[0] = gdb_if_getchar();
-                if (packet[0]==0x04)
-                    return 1;
-            } while ((packet[0] != '$') && (packet[0] != REMOTE_SOM));
+            for ( ;; ) {
+                int reply = gdb_if_getchar_to(10);
+                if (reply < 0) {
+                    platform_idle_processing();
+                } else {
+                    packet[0] = (char)reply;
+                    if (reply == 0x04)
+                        return 1;
+                    else if (reply == '$' || reply == REMOTE_SOM)
+                        break;
+                }
+            }
 #if PC_HOSTED == 0
             if (packet[0]==REMOTE_SOM) {
                 /* This is probably a remote control packet

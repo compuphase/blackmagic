@@ -173,13 +173,14 @@ extern unsigned cortexm_wait_timeout;
 #define	CORTEXM_TOPT_INHIBIT_NRST (1 << 2)
 
 enum cortexm_types {
-	CORTEX_M0  = 0xc200,
-	CORTEX_M0P = 0xc600,
-	CORTEX_M3  = 0xc230,
-	CORTEX_M4  = 0xc240,
-	CORTEX_M7  = 0xc270,
-	CORTEX_M23 = 0xd200,
-	CORTEX_M33 = 0xd210,
+    CORTEX_M0  = 0xc200,
+    CORTEX_M0P = 0xc600,
+    CORTEX_M3  = 0xc230,
+    CORTEX_M4  = 0xc240,
+    CORTEX_M7  = 0xc270,
+    CORTEX_M23 = 0xd200,
+    CORTEX_M33 = 0xd210,
+    STAR_MC1   = 0x1320,
 };
 #define CPUID_PARTNO_MASK 0xfff0
 #define CPUID_REVISION_MASK 0x00f00000

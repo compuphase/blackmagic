@@ -420,7 +420,7 @@ bool cmd_morse(target *t, int argc, const char **argv)
     (void)t;
     (void)argc;
     (void)argv;
-    if(morse_msg) {
+    if (morse_msg) {
         gdb_outf("%s\n", morse_msg);
         DEBUG_WARN("%s\n", morse_msg);
     } else {
@@ -518,13 +518,17 @@ static bool cmd_target_power(target *t, int argc, const char **argv)
         if (parse_enable_or_disable(argv[1], &want_enable)) {
             if (want_enable && !is_enabled
                 && platform_target_voltage_sense() > POWER_CONFLICT_THRESHOLD) {
-                /* want to enable target power, but VREF > 0.5V sensed -> cancel */
+                /* Want to enable target power, but VREF > 0.5V sensed -> cancel */
                 gdb_outf("Target already powered (%s)\n", platform_target_voltage());
             } else if (want_enable != is_enabled) {
                 platform_target_set_power(want_enable);
                 gdb_outf("%s target power\n", want_enable ? "Enabling" : "Disabling");
+                /* Enabling 'tpwr' must clear the error message, iff the error
+                   is 'tpwr'-related. */
+                if (morse_msg && strncmp(morse_msg, "TPWR", 4) == 0)
+                    morse(NULL, false);
             } else {
-                /* no change -> different reply */
+                /* No change -> different reply */
                 gdb_outf("Target Power: %s\n", is_enabled ? "enabled" : "disabled");
             }
         }
