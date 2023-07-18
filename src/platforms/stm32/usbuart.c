@@ -264,11 +264,11 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 {
     (void)ep;
 
-    usbd_ep_nak_set(dev, CDCACM_UART_ENDPOINT, 1);
+    usbd_ep_nak_set(dev, CDCACM_UART_DATA_EP, 1);
 
     /* Read new packet directly into TX buffer */
     uint8_t *const tx_buf_ptr = &buf_tx[buf_tx_act_idx * TX_BUF_SIZE];
-    const uint16_t len = usbd_ep_read_packet(dev, CDCACM_UART_ENDPOINT,
+    const uint16_t len = usbd_ep_read_packet(dev, CDCACM_UART_DATA_EP,
                         tx_buf_ptr + buf_tx_act_sz, CDCACM_PACKET_SIZE);
 
 #if defined(BLACKMAGIC)
@@ -277,7 +277,7 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
      */
     if(!(RCC_APB2ENR & RCC_APB2ENR_USART1EN) &&
        !(RCC_APB1ENR & RCC_APB1ENR_USART2EN)) {
-        usbd_ep_nak_set(dev, CDCACM_UART_ENDPOINT, 0);
+        usbd_ep_nak_set(dev, CDCACM_UART_DATA_EP, 0);
         return;
     }
 #endif
@@ -297,7 +297,7 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 
     /* Enable USBUART TX packet reception if buffer has enough space */
     if (TX_BUF_SIZE - buf_tx_act_sz >= CDCACM_PACKET_SIZE)
-        usbd_ep_nak_set(dev, CDCACM_UART_ENDPOINT, 0);
+        usbd_ep_nak_set(dev, CDCACM_UART_DATA_EP, 0);
 }
 #endif
 
@@ -367,7 +367,7 @@ static void usbuart_send_rx_packet(void)
         /* Send if buffer not empty */
         if (packet_size)
         {
-            const uint16_t written = usbd_ep_write_packet(usbdev, CDCACM_UART_ENDPOINT, packet_buf, packet_size);
+            const uint16_t written = usbd_ep_write_packet(usbdev, CDCACM_UART_DATA_EP, packet_buf, packet_size);
             usb_dbg_out = (usb_dbg_out + written) % RX_FIFO_SIZE;
             return;
         }
@@ -377,7 +377,7 @@ static void usbuart_send_rx_packet(void)
         packet_size = copy_from_fifo(packet_buf, buf_rx, buf_rx_out, buf_rx_in, CDCACM_PACKET_SIZE - 1, RX_FIFO_SIZE);
 
         /* Advance fifo out pointer by amount written */
-        const uint16_t written = usbd_ep_write_packet(usbdev, CDCACM_UART_ENDPOINT, packet_buf, packet_size);
+        const uint16_t written = usbd_ep_write_packet(usbdev, CDCACM_UART_DATA_EP, packet_buf, packet_size);
         buf_rx_out = (buf_rx_out + written) % RX_FIFO_SIZE;
     }
 }
@@ -486,7 +486,7 @@ void USBUSART2_ISR(void)
     if (buf_tx_act_sz)                          \
     {                                   \
         usbuart_change_dma_tx_buf();                    \
-        usbd_ep_nak_set(usbdev, CDCACM_UART_ENDPOINT, 0);       \
+        usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 0);       \
     }                                   \
     else                                    \
     {                                   \

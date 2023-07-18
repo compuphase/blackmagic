@@ -30,11 +30,13 @@
 
 #include <libopencm3/usb/usbd.h>
 
-#define CDCACM_PACKET_SIZE 	64
+#define CDCACM_PACKET_SIZE      64
 
-#define CDCACM_GDB_ENDPOINT	1
-#define CDCACM_UART_ENDPOINT	3
-#define TRACE_ENDPOINT			5
+#define CDCACM_GDB_DATA_EP      1
+#define CDCACM_GDB_CTRL_EP      (CDCACM_GDB_DATA_EP + 1)
+#define CDCACM_UART_DATA_EP     3
+#define CDCACM_UART_CTRL_EP     (CDCACM_UART_DATA_EP + 1)
+#define TRACE_IN_EP             5
 
 extern usbd_device *usbdev;
 

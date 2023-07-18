@@ -329,7 +329,7 @@ bool target_flash_write(target *t,
             return false;
         }
         dest += tmplen;
-        src += tmplen;
+        src = (uint8_t*)src + tmplen;
         len -= tmplen;
     }
     return true;
@@ -380,9 +380,9 @@ bool target_flash_write_buffered(struct target_flash *f,
         }
         /* Copy chunk into sector buffer */
         size_t sectlen = MIN(f->buf_size - offset, len);
-        memcpy(f->buf + offset, src, sectlen);
+        memcpy((uint8_t*)f->buf + offset, src, sectlen);
         dest += sectlen;
-        src += sectlen;
+        src = (uint8_t*)src + sectlen;
         len -= sectlen;
     }
     return ret;
@@ -466,7 +466,7 @@ void target_regs_read(target *t, void *data)
         return;
     }
     for (size_t x = 0, i = 0; x < t->regs_size; ) {
-        x += t->reg_read(t, i++, data + x, t->regs_size - x);
+        x += t->reg_read(t, i++, (uint8_t*)data + x, t->regs_size - x);
     }
 }
 void target_regs_write(target *t, const void *data)
@@ -476,7 +476,7 @@ void target_regs_write(target *t, const void *data)
         return;
     }
     for (size_t x = 0, i = 0; x < t->regs_size; ) {
-        x += t->reg_write(t, i++, data + x, t->regs_size - x);
+        x += t->reg_write(t, i++, (uint8_t*)data + x, t->regs_size - x);
     }
 }
 

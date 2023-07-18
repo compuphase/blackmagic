@@ -46,7 +46,7 @@ void gdb_if_putchar(unsigned char c, int flush)
 			count_in = 0;
 			return;
 		}
-		while(usbd_ep_write_packet(usbdev, CDCACM_GDB_ENDPOINT,
+		while(usbd_ep_write_packet(usbdev, CDCACM_GDB_DATA_EP,
 			buffer_in, count_in) <= 0);
 
 		if (flush && (count_in == CDCACM_PACKET_SIZE)) {
@@ -56,7 +56,7 @@ void gdb_if_putchar(unsigned char c, int flush)
 			 * that transfer is complete, so we just send a packet
 			 * containing a null byte for now.
 			 */
-			while (usbd_ep_write_packet(usbdev, CDCACM_GDB_ENDPOINT,
+			while (usbd_ep_write_packet(usbdev, CDCACM_GDB_DATA_EP,
 				"\0", 1) <= 0);
 		}
 
@@ -68,11 +68,11 @@ void gdb_if_putchar(unsigned char c, int flush)
 void gdb_usb_out_cb(usbd_device *dev, uint8_t ep)
 {
 	(void)ep;
-	usbd_ep_nak_set(dev, CDCACM_GDB_ENDPOINT, 1);
-	count_new = usbd_ep_read_packet(dev, CDCACM_GDB_ENDPOINT,
+	usbd_ep_nak_set(dev, CDCACM_GDB_DATA_EP, 1);
+	count_new = usbd_ep_read_packet(dev, CDCACM_GDB_DATA_EP,
 	                                double_buffer_out, CDCACM_PACKET_SIZE);
 	if(!count_new) {
-		usbd_ep_nak_set(dev, CDCACM_GDB_ENDPOINT, 0);
+		usbd_ep_nak_set(dev, CDCACM_GDB_DATA_EP, 0);
 	}
 }
 #endif
@@ -87,11 +87,11 @@ static void gdb_if_update_buf(void)
 		count_out = count_new;
 		count_new = 0;
 		out_ptr = 0;
-		usbd_ep_nak_set(usbdev, CDCACM_GDB_ENDPOINT, 0);
+		usbd_ep_nak_set(usbdev, CDCACM_GDB_DATA_EP, 0);
 	}
 	asm volatile ("cpsie i; isb");
 #else
-	count_out = usbd_ep_read_packet(usbdev, CDCACM_GDB_ENDPOINT,
+	count_out = usbd_ep_read_packet(usbdev, CDCACM_GDB_DATA_EP,
 	                                buffer_out, CDCACM_PACKET_SIZE);
 	out_ptr = 0;
 #endif
@@ -111,7 +111,10 @@ unsigned char gdb_if_getchar(void)
 	return buffer_out[out_ptr++];
 }
 
-unsigned char gdb_if_getchar_to(int timeout)
+/** gdb_if_getchar_to() waits for input, but with timeout.
+ *  \return The character read (0..255) on success, or -1 on timeout.
+ */
+int gdb_if_getchar_to(int timeout)
 {
 	platform_timeout t;
 	platform_timeout_set(&t, timeout);

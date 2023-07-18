@@ -87,7 +87,7 @@ static uint8_t trace_usb_buf_size;
 void trace_buf_push(uint8_t *buf, int len)
 {
 	if (decoding)
-		traceswo_decode(usbdev, CDCACM_UART_ENDPOINT, buf, len);
+		traceswo_decode(usbdev, CDCACM_UART_DATA_EP, buf, len);
 	else if (usbd_ep_write_packet(usbdev, 0x85, buf, len) != len) {
 		if (trace_usb_buf_size + len > 64) {
 			/* Stall if upstream to too slow. */
@@ -106,7 +106,7 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 		return;
 
 	if (decoding)
-		traceswo_decode(dev, CDCACM_UART_ENDPOINT, trace_usb_buf, trace_usb_buf_size);
+		traceswo_decode(dev, CDCACM_UART_DATA_EP, trace_usb_buf, trace_usb_buf_size);
 	else
 		usbd_ep_write_packet(dev, ep, trace_usb_buf, trace_usb_buf_size);
 	trace_usb_buf_size = 0;
