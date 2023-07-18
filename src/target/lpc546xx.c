@@ -170,7 +170,7 @@ static bool lpc546xx_cmd_erase_sector(target *t, int argc, const char *argv[])
         int retval = lpc546xx_flash_erase(t->flash, sector_addr, 1);
         return retval == 0;
     }
-    return -1;
+    return false;
 }
 
 static bool lpc546xx_cmd_part_id(target *t, int argc, const char *argv[])
@@ -254,7 +254,7 @@ static bool lpc546xx_cmd_write_sector(target *t, int argc, const char *argv[])
 
         return retval == 0;
     }
-    return -1;
+    return false;
 }
 
 static int lpc546xx_flash_init(target *t)

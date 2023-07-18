@@ -68,7 +68,7 @@ static void handle_v_packet(char *packet, size_t plen);
 static void handle_z_packet(char *packet, size_t plen);
 static void handle_kill_target(void);
 
-static void gdb_target_destroy_callback(struct target_controller *tc, target *t)
+static void gdb_target_destroy_callback(struct target_controller *tc, const target *t)
 {
     (void)tc;
     if (cur_target == t) {
@@ -208,7 +208,7 @@ int gdb_main_loop(struct target_controller *tc, bool in_syscall)
 
             /* Wait for target halt */
             while(!(reason = target_halt_poll(cur_target, &watch))) {
-                unsigned char c = gdb_if_getchar_to(0);
+                int c = gdb_if_getchar_to(0);
                 if (c == '\x03' || c == '\x04')
                     target_halt_request(cur_target);
                 #ifdef ENABLE_RTT
@@ -636,7 +636,7 @@ static void handle_v_packet(char *packet, size_t plen)
         /* Write Flash Memory */
         uint32_t count = plen - bin;
         DEBUG_GDB("Flash Write %08" PRIX32 " %08" PRIX32 "\n", addr, count);
-        if (cur_target && target_flash_write(cur_target, addr, (void*)packet + bin, count)) {
+        if (cur_target && target_flash_write(cur_target, addr, (void*)(packet + bin), count)) {
             gdb_putpacketz("OK");
         } else {
             flash_mode = 0;

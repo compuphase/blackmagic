@@ -242,7 +242,7 @@ uint32_t platform_target_voltage_sense(void)
     adc_start();
     while (!(1&(ADC->intflag)))
       {}
-    uint32_t val = ((776*adc_result())>>16); /* 528 without divider, 776 with it */
+    uint32_t val = ((776*adc_result())>>16); /* 528 without voltage divider, 776 with it */
     return val;
 }
 

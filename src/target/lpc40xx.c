@@ -147,10 +147,9 @@ bool lpc40xx_probe(target *t)
             } else {
                 /* first main SRAM block is 64 KiB */
                 target_add_ram(t, 0x10000000U, 0x10000U);
-                /* two more 16 KiB blocks may be present (these are consecutive,
+                /* one or two more 16 KiB blocks are present (these are consecutive,
                    and so they might be considered a single 32 KiB block) */
-                if (sram_size > 0x10000)
-                    target_add_ram(t, 0x2007C000, 0x4000);
+                target_add_ram(t, 0x2007C000, 0x4000);
                 if (sram_size > 0x14000)
                     target_add_ram(t, 0x20080000, 0x4000);
             }

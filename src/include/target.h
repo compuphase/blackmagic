@@ -148,7 +148,7 @@ enum target_seek_flag {
 };
 
 struct target_controller {
-	void (*destroy_callback)(struct target_controller *, target *t);
+	void (*destroy_callback)(struct target_controller *, const target *t);
 	void (*printf)(struct target_controller *, const char *fmt, va_list);
 
 	/* Interface to host system calls */

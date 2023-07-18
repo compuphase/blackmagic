@@ -591,7 +591,7 @@ static bool stm32f4_option_write(target *t, uint32_t *val, int count)
     target_mem_write32(t, FLASH_OPTKEYR, OPTKEY2);
     while (target_mem_read32(t, FLASH_SR) & FLASH_SR_BSY)
         if(target_check_error(t))
-            return -1;
+            return false;
 
     /* WRITE option bytes instruction */
     if (((t->idcode == ID_STM32F42X) || (t->idcode == ID_STM32F46X) ||

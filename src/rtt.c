@@ -281,7 +281,7 @@ int rtt_aligned_mem_read(target *t, void *dest, target_addr src, size_t len)
 		return target_mem_read(t, dest, src, len);
 
 	const uint32_t retval = target_mem_read(t, dest, src0, len0);
-	memmove(dest, dest + offset, len);
+	memmove(dest, (char*)dest + offset, len);
 	return retval;
 }
 
