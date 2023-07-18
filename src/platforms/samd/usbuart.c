@@ -47,7 +47,7 @@ static uint8_t USART_NUM = 0;
 /* Current Baud Rate setting */
 static uint32_t current_baud = 115200;
 
-usbd_device * usbdev;
+extern usbd_device * usbdev;
 
 /* input and output ring buffer */
 struct {
@@ -169,12 +169,12 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 	(void)ep;
 
 	char buf[CDCACM_PACKET_SIZE];
-	int len = usbd_ep_read_packet(dev, CDCACM_UART_ENDPOINT,
+	int len = usbd_ep_read_packet(dev, CDCACM_UART_DATA_EP,
 					buf, CDCACM_PACKET_SIZE);
 
 	gpio_set(LED_PORT_UART, LED_UART);
 	for(int i = 0; i < len; i++) {
-		usart_putc(buf[i]); 
+		usart_putc(buf[i]);
 	}
 	gpio_clear(LED_PORT_UART, LED_UART);
 }

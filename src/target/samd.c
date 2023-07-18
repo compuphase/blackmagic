@@ -697,7 +697,7 @@ static bool samd_set_flashlock(target *t, uint16_t value, const char **argv)
     /* Poll for NVM Ready */
     while ((target_mem_read32(t, SAMD_NVMC_INTFLAG) & SAMD_NVMC_READY) == 0)
         if (target_check_error(t))
-            return -1;
+            return false;
 
     /* Modify the high byte of the user row */
     high = (high & 0x0000FFFF) | ((value << 16) & 0xFFFF0000);
@@ -778,7 +778,7 @@ static bool samd_set_bootprot(target *t, uint16_t value, const char **argv)
     /* Poll for NVM Ready */
     while ((target_mem_read32(t, SAMD_NVMC_INTFLAG) & SAMD_NVMC_READY) == 0)
         if (target_check_error(t))
-            return -1;
+            return false;
 
     /* Modify the low word of the user row */
     low = (low & 0xFFFFFFF8) | ((value << 0 ) & 0x00000007);
@@ -922,7 +922,7 @@ static bool samd_cmd_ssb(target *t, int argc, const char **argv)
     /* Poll for NVM Ready */
     while ((target_mem_read32(t, SAMD_NVMC_INTFLAG) & SAMD_NVMC_READY) == 0)
         if (target_check_error(t))
-            return -1;
+            return false;
 
     tc_printf(t, "Security bit set! "
           "Scan again, attach and issue 'monitor erase_mass' to reset.\n");

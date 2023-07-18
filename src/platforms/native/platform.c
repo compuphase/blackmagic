@@ -234,7 +234,7 @@ void platform_init(void)
 }
 
 /** platform_idle_processing() is called to regularly run code that has low
- *  priority. It may be called at irregular intervals.
+ *  priority. It may be called at irregular intervals (if the BMP is busy).
  */
 void platform_idle_processing(void)
 {

@@ -18,12 +18,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* This file implements CH32F1xx target specific functions. 
+/* This file implements CH32F1xx target specific functions.
     The ch32 flash is rather slow so this code is using the so called fast mode (ch32 specific).
     128 bytes are copied to a write buffer, then the write buffer is committed to flash
     /!\ There is some sort of bus stall/bus arbitration going on that does NOT work when
     programmed through SWD/jtag
-    The workaround is to wait a few cycles before filling the write buffer. This is performed by reading the flash a few times 
+    The workaround is to wait a few cycles before filling the write buffer. This is performed by reading the flash a few times
 
  */
 
@@ -254,7 +254,7 @@ static bool ch32f1_wait_flash_ready(target *t,uint32_t addr)
 static int ch32f1_upload(target *t, uint32_t dest, const void  *src, uint32_t offset)
 {
     volatile uint32_t sr, magic;
-    const uint32_t *ss = (const uint32_t *)(src+offset);
+    const uint32_t *ss = (const uint32_t *)((uint8_t*)src+offset);
     uint32_t dd = dest+offset;
 
     SET_CR(FLASH_CR_FTPG_CH32);
@@ -335,7 +335,7 @@ static int ch32f1_flash_write(struct target_flash *f,
         else
           length = 0;
         dest += 128;
-        src += 128;
+        src = (uint8_t*)src + 128;
 
         sr = target_mem_read32(t, FLASH_SR); // 13
         ch32f1_flash_lock(t);
@@ -349,7 +349,7 @@ static int ch32f1_flash_write(struct target_flash *f,
 	DEBUG_INFO("Verifying\n");
     for(size_t i = 0; i < len; i+= 4) {
         uint32_t mem = target_mem_read32(t, orgDest + i);
-        uint32_t mem2 = *(uint32_t *)(orgSrc + i);
+        uint32_t mem2 = *(uint32_t *)((uint8_t*)orgSrc + i);
         if (mem != mem2) {
 			DEBUG_WARN(">>>>write mistmatch at address 0x%x\n", orgDest + i);
 			DEBUG_WARN(">>>>expected: 0x%x\n", mem2);

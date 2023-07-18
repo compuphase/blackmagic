@@ -63,7 +63,7 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 		uint16_t rc;
 		if (decoding)
 			/* write decoded swo packets to the uart port */
-			rc = traceswo_decode(dev, CDCACM_UART_ENDPOINT,
+			rc = traceswo_decode(dev, CDCACM_UART_DATA_EP,
 										  &trace_rx_buf[r * FULL_SWO_PACKET],
 										  FULL_SWO_PACKET);
 		else

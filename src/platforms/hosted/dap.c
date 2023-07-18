@@ -452,11 +452,11 @@ unsigned int dap_write_block(ADIv5_AP_t *ap, uint32_t dest, const void *src,
 			uint32_t tmp = 0;
 			/* Pack data into correct data lane */
 			if (align == ALIGN_BYTE) {
-				tmp = ((uint32_t)*(uint8_t  *)src) << ((dest & 3) << 3);
+				tmp = ((uint32_t)*(uint8_t *)src) << ((dest & 3) << 3);
 			} else {
-				tmp = ((uint32_t)*(uint16_t *)src) << ((dest & 2) << 3);
+				tmp = ((uint32_t)*(uint16_t*)src) << ((dest & 2) << 3);
 			}
-			src = src + (1 << align);
+			src = (const uint8_t*)src + (1 << align);
 			dest += (1 << align);
 			size--;
 			*p++ = tmp;
@@ -623,7 +623,7 @@ void dap_read_single(ADIv5_AP_t *ap, void *dest, uint32_t src, enum align align)
 	*p++ = SWD_DP_R_RDBUFF | DAP_TRANSFER_RnW;
 	buf[2] = 5;
 	uint32_t tmp = wait_word(buf, 63, p - buf, &ap->dp->fault);
-	dest = extract(dest, src, tmp, align);
+	extract(dest, src, tmp, align);
 }
 
 void dap_write_single(ADIv5_AP_t *ap, uint32_t dest, const void *src,
@@ -663,7 +663,7 @@ void dap_jtagtap_tdi_tdo_seq(uint8_t *DO, bool final_tms, const uint8_t *TMS,
 	const uint8_t *din = DI;
 	uint8_t *dout = DO;
 	if (!TMS) {
-		int last_byte = last_byte = (ticks - 1) >> 3;
+		int last_byte = (ticks - 1) >> 3;
 		int last_bit = (ticks - 1) & 7;
 		if (final_tms)
 			ticks --;
@@ -843,7 +843,7 @@ bool dap_swdptap_seq_in_parity(uint32_t *ret, int ticks)
 	}
 	*ret = res;
 	unsigned int parity = __builtin_parity(res) & 1;
-	parity ^= (buf[5] % 1);
+	parity ^= (buf[5] & 1);
 	DEBUG_WARN("Res %08" PRIx32" %d\n", *ret, parity & 1);
 	return (!(parity & 1));
 }

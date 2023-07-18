@@ -405,7 +405,7 @@ bool cortexm_probe(ADIv5_AP_t *ap)
     } else {
         target_check_error(t);
     }
-    
+
     /* If we set the interrupt catch vector earlier, clear it. */
     if (conn_reset)
         target_mem_write32(t, CORTEXM_DEMCR, 0);
@@ -471,7 +471,7 @@ bool cortexm_probe(ADIv5_AP_t *ap)
 #endif
         }
         if (ap->ap_partno == 0x4c0)  { /* Cortex-M0+ ROM */
-            PROBE(lpc11xx_probe); /* LPC8 */
+            PROBE(lpc11xx_probe); /* some of the LPC8xx series, like LPC802 */
         } else if (ap->ap_partno == 0x4c3)  { /* Cortex-M3 ROM */
             PROBE(ch32f1_probe);
             PROBE(stm32f1_probe); /* Care for other STM32F1 clones */
@@ -493,10 +493,7 @@ bool cortexm_probe(ADIv5_AP_t *ap)
             PROBE(lpc40xx_probe);
             PROBE(kinetis_probe); /* Older K-series */
         } else if (ap->ap_partno == 0x4cb) { /* Cortex-M23 ROM */
-            PROBE(gd32f1_probe); /* GD32E23x uses GD32F1 peripherals */
-        } else if (ap->ap_partno == 0x4c0) { /* Cortex-M0+ ROM */
-            PROBE(lpc11xx_probe); /* some of the LPC8xx series, like LPC802 */
-        }
+            PROBE(gd32f1_probe); /* GD32E23x uses GD32F1 peripherals */        }
         /* Info on PIDR of these parts wanted! */
         PROBE(sam3x_probe);
         PROBE(lmi_probe);
@@ -554,7 +551,6 @@ bool cortexm_attach(target *t)
             CORTEXM_FPB_CTRL_KEY | CORTEXM_FPB_CTRL_ENABLE);
 
     uint32_t dhcsr = target_mem_read32(t, CORTEXM_DHCSR);
-    dhcsr = target_mem_read32(t, CORTEXM_DHCSR);
     if (dhcsr & CORTEXM_DHCSR_S_RESET_ST) {
         platform_nrst_set_val(false);
         platform_timeout timeout;
@@ -1133,13 +1129,13 @@ static bool cortexm_vector_catch(target *t, int argc, char *argv[])
     struct cortexm_priv *priv = t->priv;
     const char *vectors[] = {"reset", NULL, NULL, NULL, "mm", "nocp",
                 "chk", "stat", "bus", "int", "hard"};
-    uint32_t tmp = 0;
     unsigned i;
 
     if (argc < 3) {
         tc_printf(t, "usage: monitor vector_catch (enable|disable) "
                  "(hard|int|bus|stat|chk|nocp|mm|reset)\n");
     } else {
+        uint32_t tmp = 0;
         for (int j = 0; j < argc; j++)
             for (i = 0; i < sizeof(vectors) / sizeof(char*); i++) {
                 if (vectors[i] && !strcmp(vectors[i], argv[j]))

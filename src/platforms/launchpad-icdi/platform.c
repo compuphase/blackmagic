@@ -91,11 +91,18 @@ platform_init(void)
 	                      0xff, 0xff);
 }
 
+/** platform_idle_processing() is called to regularly run code that has low
+ *  priority. It may be called at irregular intervals (if the BMP is busy).
+ */
+void platform_idle_processing(void)
+{
+}
+
 void platform_nrst_set_val(bool assert)
 {
 	if (assert) {
 		gpio_clear(NRST_PORT, NRST_PIN);
-		for(volatile int i = 0; i < 10000; i++) 
+		for (volatile int i = 0; i < 10000; i++)
 			__asm__("nop");
 	} else {
 		gpio_set(NRST_PORT, NRST_PIN);

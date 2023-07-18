@@ -69,13 +69,13 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 	char usb_buf[CDCACM_PACKET_SIZE];
 
 	/* close flow control while processing packet */
-	usbd_ep_nak_set(usbdev, CDCACM_UART_ENDPOINT, 1);
+	usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 1);
 
-	const uint16_t len = usbd_ep_read_packet(usbdev, CDCACM_UART_ENDPOINT, usb_buf, CDCACM_PACKET_SIZE);
+	const uint16_t len = usbd_ep_read_packet(usbdev, CDCACM_UART_DATA_EP, usb_buf, CDCACM_PACKET_SIZE);
 
 	/* skip flag: drop packet if not enough free buffer space */
 	if (rtt_flag_skip && len > recv_bytes_free()) {
-		usbd_ep_nak_set(usbdev, CDCACM_UART_ENDPOINT, 0);
+		usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 0);
 		return;
 	}
 
@@ -90,7 +90,7 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 
 	/* block flag: flow control closed if not enough free buffer space */
 	if (!(rtt_flag_block && recv_set_nak()))
-		usbd_ep_nak_set(usbdev, CDCACM_UART_ENDPOINT, 0);
+		usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 0);
 
 	return;
 }
@@ -107,7 +107,7 @@ int32_t rtt_getchar()
 
 	/* open flow control if enough free buffer space */
 	if (!recv_set_nak())
-		usbd_ep_nak_set(usbdev, CDCACM_UART_ENDPOINT, 0);
+		usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 0);
 
 	return retval;
 }
@@ -124,11 +124,11 @@ uint32_t rtt_write(const char *buf, uint32_t len)
 	if (len != 0 && usbdev && cdcacm_get_config() && cdcacm_get_dtr()) {
 		for (uint32_t p = 0; p < len; p += CDCACM_PACKET_SIZE) {
 			uint32_t plen = MIN(CDCACM_PACKET_SIZE, len - p);
-			while(usbd_ep_write_packet(usbdev, CDCACM_UART_ENDPOINT, buf + p, plen) <= 0);
+			while(usbd_ep_write_packet(usbdev, CDCACM_UART_DATA_EP, buf + p, plen) <= 0);
 		}
 		/* flush 64-byte packet on full-speed */
 		if (CDCACM_PACKET_SIZE == 64 && (len % CDCACM_PACKET_SIZE) == 0)
-			while(usbd_ep_write_packet(usbdev, CDCACM_UART_ENDPOINT, NULL, 0) <= 0);
+			while(usbd_ep_write_packet(usbdev, CDCACM_UART_DATA_EP, NULL, 0) <= 0);
 	}
 	return len;
 }

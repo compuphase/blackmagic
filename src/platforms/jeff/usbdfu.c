@@ -161,7 +161,6 @@ static uint8_t usbdfu_getstatus(uint32_t *bwPollTimeout)
 
 static void usbdfu_getstatus_complete(usbd_device *usbd_dev, struct usb_setup_data *req)
 {
-	int i;
 	(void)req;
 	(void)usbd_dev;
 
@@ -191,7 +190,7 @@ static void usbdfu_getstatus_complete(usbd_device *usbd_dev, struct usb_setup_da
 			        //uint16_t *dat = (uint16_t *)(prog.buf + i);
 				//flash_program_half_word(baseaddr + i,
 				//		*dat);
-			for (i = 0; i < BUF_SIZE; i += 256){
+			for (int i = 0; i < BUF_SIZE; i += 256){
 				nvmctrl_erase_row(baseaddr+i);
 				nvmctrl_write_row(baseaddr+i, prog.buf+i);
 			}

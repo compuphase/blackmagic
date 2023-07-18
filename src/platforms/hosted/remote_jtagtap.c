@@ -114,7 +114,6 @@ static void jtagtap_tdi_tdo_seq(
 	uint8_t *DO, const uint8_t final_tms, const uint8_t *DI, int ticks)
 {
 	uint8_t construct[REMOTE_MAX_MSG_SIZE];
-	int s;
 
 	if(!ticks || (!DI && !DO))
 		return;
@@ -136,11 +135,11 @@ static void jtagtap_tdi_tdo_seq(
 			}
 		}
 		/* PRIx64 differs with system. Use it explicit in the format string*/
-		s = snprintf((char *)construct, REMOTE_MAX_MSG_SIZE,
-					 "!J%c%02x%" PRIx64 "%c",
-					 (!ticks && final_tms) ?
-					 REMOTE_TDITDO_TMS : REMOTE_TDITDO_NOTMS,
-					 chunk, di, REMOTE_EOM);
+		int s = snprintf((char *)construct, REMOTE_MAX_MSG_SIZE,
+						 "!J%c%02x%" PRIx64 "%c",
+						 (!ticks && final_tms) ?
+						 REMOTE_TDITDO_TMS : REMOTE_TDITDO_NOTMS,
+						 chunk, di, REMOTE_EOM);
 		platform_buffer_write(construct,s);
 
 		s = platform_buffer_read(construct, REMOTE_MAX_MSG_SIZE);

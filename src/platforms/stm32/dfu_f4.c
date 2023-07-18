@@ -60,7 +60,7 @@ void dfu_check_and_do_sector_erase(uint32_t addr)
 void dfu_flash_program_buffer(uint32_t baseaddr, void *buf, int len)
 {
     for(int i = 0; i < len; i += 4)
-        flash_program_word(baseaddr + i, *(uint32_t*)((char*)buf+i));
+        flash_program_word(baseaddr + i, *(uint32_t*)((uint8_t*)buf+i));
 }
 
 uint32_t dfu_poll_timeout(uint8_t cmd, uint32_t addr, uint16_t blocknum)

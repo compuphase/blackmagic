@@ -47,7 +47,7 @@ void dfu_check_and_do_sector_erase(uint32_t sector)
 void dfu_flash_program_buffer(uint32_t baseaddr, void *buf, int len)
 {
     for(int i = 0; i < len; i += 2)
-        flash_program_half_word(baseaddr + i, *(uint16_t*)((char*)buf+i));
+        flash_program_half_word(baseaddr + i, *(uint16_t*)((uint8_t*)buf+i));
 
     /* Call the platform specific dfu event callback. */
     dfu_event();

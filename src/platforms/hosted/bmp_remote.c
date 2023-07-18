@@ -295,7 +295,7 @@ static void remote_ap_mem_read(
         if ((s > 0) && (construct[0] == REMOTE_RESP_OK)) {
             unhexify(dest, (const char*)&construct[1], count);
             src  += count;
-            dest += count;
+            dest = (uint8_t*)dest + count;
             len  -= count;
             continue;
         } else {
@@ -333,7 +333,7 @@ static void remote_ap_mem_write_sized(
         char *p = construct + s;
         hexify(p, src, count);
         p += 2 * count;
-        src  += count;
+        src = (uint8_t*)src + count;
         dest += count;
         len  -= count;
         *p++ = REMOTE_EOM;
@@ -391,4 +391,5 @@ void remote_add_jtag_dev(int i, const jtag_dev_t *jtag_dev)
     platform_buffer_write(construct, s);
     s = platform_buffer_read(construct, REMOTE_MAX_MSG_SIZE);
     /* No check for error here. Done in remote_adiv5_dp_defaults!*/
+    (void)s;
 }

@@ -84,7 +84,14 @@ void platform_init(void)
     /* Don't enable UART if we're being debugged. */
     if (!(SCS_DEMCR & SCS_DEMCR_TRCENA))
         usbuart_init();
-        adc_init();
+    adc_init();
+}
+
+/** platform_idle_processing() is called to regularly run code that has low
+ *  priority. It may be called at irregular intervals (if the BMP is busy).
+ */
+void platform_idle_processing(void)
+{
 }
 
 void platform_nrst_set_val(bool assert)

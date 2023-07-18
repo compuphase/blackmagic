@@ -48,10 +48,8 @@ uint64_t remotehston(uint32_t limit, char *s)
 
 {
     uint64_t ret=0L;
-    char c;
-
     while (limit--) {
-        c=*s++;
+        char c=*s++;
         if (!ISHEX(c))
             return ret;
         ret=(ret<<4)|HTON(c);

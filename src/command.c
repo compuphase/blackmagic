@@ -732,7 +732,7 @@ static bool cmd_convert_tdio(target *t, int argc, const char **argv)
 #endif
 
 #ifdef PLATFORM_HAS_PRINTSERIAL
-bool cmd_serial(target *t, int argc, char **argv)
+bool cmd_serial(target *t, int argc, const char **argv)
 {
     (void) t;
     (void) argc;

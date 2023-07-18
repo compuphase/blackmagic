@@ -242,5 +242,4 @@ int platform_buffer_read(uint8_t *data, int maxsize)
 
 	DEBUG_WARN("Failed to read\n");
 	return(-6);
-	return 0;
 }

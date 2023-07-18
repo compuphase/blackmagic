@@ -124,6 +124,13 @@ void platform_init(int argc, char **argv)
     }
 }
 
+/** platform_idle_processing() is called to regularly run code that has low
+ *  priority. It may be called at irregular intervals (if the BMP is busy).
+ */
+void platform_idle_processing(void)
+{
+}
+
 int platform_adiv5_swdp_scan(uint32_t targetid)
 {
     info.is_jtag = false;

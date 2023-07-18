@@ -339,7 +339,7 @@ static int stm32f1_flash_write(struct target_flash *f,
             return -1;
         }
         dest += length;
-        src += length;
+        src = (uint8_t*)src + length;
     }
     length = len - length;
     if ((t->idcode == 0x430) && length) { /* Write on bank 2 */

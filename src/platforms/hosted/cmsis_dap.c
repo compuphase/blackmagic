@@ -117,7 +117,7 @@ int dap_init(bmp_info_t *info)
             has_swd_sequence = ((major > 1 ) || ((major > 0 ) && (minor > 1)));
         }
     }
-    size = dap_info(DAP_INFO_CAPABILITIES, buffer, sizeof(buffer));
+    dap_info(DAP_INFO_CAPABILITIES, buffer, sizeof(buffer));
     dap_caps = buffer[0];
     DEBUG_INFO("Cap (0x%2x): %s%s%s", dap_caps,
            (dap_caps & 1)? "SWD" : "",
@@ -305,7 +305,7 @@ static void dap_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
             }
             blocksize -= transfersize;
             len       -= transfersize;
-            dest      += transfersize;
+            dest      = (uint8_t*)dest + transfersize;
             src       += transfersize;
         }
     }
@@ -342,7 +342,7 @@ static void dap_mem_write_sized(
             blocksize -= transfersize;
             len       -= transfersize;
             dest      += transfersize;
-            src       += transfersize;
+            src       = (uint8_t*)src + transfersize;
         }
     }
     DEBUG_WIRE("memwrite done\n");

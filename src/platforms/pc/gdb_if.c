@@ -198,7 +198,7 @@ unsigned char gdb_if_getchar(void)
 	return ret;
 }
 
-unsigned char gdb_if_getchar_to(int timeout)
+int gdb_if_getchar_to(int timeout)
 {
 	fd_set fds;
 # if defined(__CYGWIN__)

@@ -118,7 +118,7 @@ void libftdi_nrst_set_val(bool assert)
 {
     (void)assert;
 }
-bool libftdi_rst_get_val(void)
+bool libftdi_nrst_get_val(void)
 {
     return false;
 }

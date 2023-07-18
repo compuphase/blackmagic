@@ -871,7 +871,7 @@ static bool samx5x_cmd_ssb(target *t, int argc, const char **argv)
 	while ((target_mem_read32(t, SAMX5X_NVMC_STATUS) &
 		SAMX5X_STATUS_READY) == 0)
 		if (target_check_error(t))
-			return -1;
+			return false;
 
 	tc_printf(t, "Set the security bit! "
 		  "You will need to issue 'monitor erase_mass' "
