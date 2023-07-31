@@ -382,9 +382,8 @@ static bool nrf51_cmd_read_help(target *t, int argc, const char **argv)
 }
 static bool nrf51_cmd_read(target *t, int argc, const char **argv)
 {
-	const struct command_s *c;
 	if (argc > 1) {
-		for(c = nrf51_read_cmd_list; c->cmd; c++) {
+		for(const struct command_s *c = nrf51_read_cmd_list; c->cmd; c++) {
 			/* Accept a partial match as GDB does.
 			 * So 'mon ver' will match 'monitor version'
 			 */

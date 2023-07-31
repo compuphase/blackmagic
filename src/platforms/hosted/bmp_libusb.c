@@ -160,7 +160,7 @@ rescan:
 	for (size_t i = 0; devs[i]; ++i) {
 		bmp_type_t type = BMP_TYPE_NONE;
 		libusb_device *dev = devs[i];
-		int res = libusb_get_device_descriptor(dev, &desc);
+		res = libusb_get_device_descriptor(dev, &desc);
 		if (res < 0) {
             DEBUG_WARN( "WARN: libusb_get_device_descriptor() failed: %s",
 					libusb_strerror(res));

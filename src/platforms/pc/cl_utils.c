@@ -578,7 +578,7 @@ int cl_execute(BMP_CL_OPTIONS_t *opt)
 					res = -1;
 					goto free_map;
 				}
-				flash += worksize;
+				flash = (void*)((uint8_t*)flash + worksize);
 			} else if (read_file != -1) {
 				int written = write(read_file, data, worksize);
 				if (written < worksize) {

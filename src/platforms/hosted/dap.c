@@ -263,9 +263,8 @@ int dap_info(int info, uint8_t *data, int size)
 
 	rsize = (size < buf[0]) ? size : buf[0];
 	memcpy(data, &buf[1], rsize);
-
-	if (rsize < size)
-		data[rsize] = 0;
+	//assert(rsize < size);
+	data[rsize] = 0;
 
 	return rsize;
 }
@@ -715,11 +714,10 @@ void dap_jtagtap_tdi_tdo_seq(uint8_t *DO, bool final_tms, const uint8_t *TMS,
 		}
 	} else {
 		while(ticks) {
-			uint8_t *p = buf;
 			int transfers = ticks;
 			if (transfers > 64)
 				transfers = 64;
-			p = buf;
+			uint8_t *p = buf;
 			*p++ = ID_DAP_JTAG_SEQUENCE;
 			*p++ = transfers;
 			for (int i = 0; i < transfers; i++) {

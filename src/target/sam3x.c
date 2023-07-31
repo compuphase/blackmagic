@@ -136,7 +136,7 @@ const struct command_s sam3x_cmd_list[] = {
 #define CHIPID_CIDR_NVPTYP_FLASH    (0x2 << CHIPID_CIDR_NVPTYP_OFFSET)
 #define CHIPID_CIDR_NVPTYP_ROM_FLASH    (0x3 << CHIPID_CIDR_NVPTYP_OFFSET)
 
-#define CHIPID_CIDR_EXT         (0x01 << 31)
+#define CHIPID_CIDR_EXT         (0x01u << 31)
 
 #define CHIPID_EXID_SAMX7X_PINS_OFFSET  (0)
 #define CHIPID_EXID_SAMX7X_PINS_MASK    (0x3 << CHIPID_EXID_SAMX7X_PINS_OFFSET)

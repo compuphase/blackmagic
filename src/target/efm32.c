@@ -844,7 +844,7 @@ static bool efm32_cmd_efm_info(target *t, int argc, const char **argv)
 	if (di_version == 2) {
 		efm32_v2_di_miscchip_t miscchip = efm32_v2_read_miscchip(t, di_version);
 		efm32_v2_di_pkgtype_t const* pkgtype = NULL;
-		efm32_v2_di_tempgrade_t const* tempgrade;
+		efm32_v2_di_tempgrade_t const* tempgrade = NULL;
 
 		for (size_t i = 0; i < (sizeof(efm32_v2_di_pkgtypes) /
 								sizeof(efm32_v2_di_pkgtype_t)); i++) {
@@ -860,7 +860,7 @@ static bool efm32_cmd_efm_info(target *t, int argc, const char **argv)
 		}
 
 		tc_printf(t, "Package %s %d pins\n", pkgtype->name, miscchip.pincount);
-		tc_printf(t, "Temperature grade %s\n", tempgrade->name);
+		tc_printf(t, "Temperature grade %s\n", tempgrade ? tempgrade->name : "-");
 		tc_printf(t, "\n");
 	}
 

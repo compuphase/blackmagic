@@ -296,7 +296,7 @@ static int rp_flash_write(struct target_flash *f, target_addr dest, const void *
             break;
         }
         len -= chunksize;
-        src += chunksize;
+        src = (void*)((uint8_t*)src + chunksize);
         dest += chunksize;
     }
     DEBUG_INFO("Write done!\n");
@@ -308,7 +308,7 @@ static bool rp_cmd_reset_usb_boot(target *t, int argc, const char *argv[])
     struct rp_priv_s *ps = (struct rp_priv_s*)t->target_storage;
     if (argc > 2) {
         ps->regs[1] = atoi(argv[2]);
-    } else if (argc < 3) {
+    } else if (argc > 1) {
         ps->regs[0] = atoi(argv[1]);
     } else {
         ps->regs[0] = 0;

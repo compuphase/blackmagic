@@ -1516,7 +1516,6 @@ static int cortexm_hostio_request(target *t)
         ret = tc_write(t, STDERR_FILENO, arm_regs[1], 1);
         break;
     case SYS_WRITE0:{ /* write0 */
-        ret = -1;
         target_addr str_begin = arm_regs[1];
         target_addr str_end = str_begin;
         while (target_mem_read8(t, str_end) != 0) {

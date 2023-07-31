@@ -122,7 +122,6 @@ int adiv5_swdp_scan(uint32_t targetid)
             }
         }
         if ((idcode & ADIV5_DP_VERSION_MASK) == ADIV5_DPv2) {
-            scan_multidrop = true;
             /* Read TargetID. Can be done with device in WFI, sleep or reset!*/
             adiv5_dp_write(initial_dp, ADIV5_DP_SELECT, 2);
             target_id = adiv5_dp_read(initial_dp, ADIV5_DP_CTRLSTAT);

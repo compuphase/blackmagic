@@ -61,22 +61,22 @@ static int stm32l4_flash_write(struct target_flash *f,
 #define WL_FPEC_BASE			0x58004000
 #define WB_FPEC_BASE			0x58004000
 
-#define L5_FLASH_OPTR_TZEN	(1 << 31)
+#define L5_FLASH_OPTR_TZEN	(1u << 31)
 
-#define FLASH_CR_PG			(1 << 0)
-#define FLASH_CR_PER		(1 << 1)
-#define FLASH_CR_MER1		(1 << 2)
+#define FLASH_CR_PG			(1u << 0)
+#define FLASH_CR_PER		(1u << 1)
+#define FLASH_CR_MER1		(1u << 2)
 #define FLASH_CR_PAGE_SHIFT	3
-#define FLASH_CR_BKER		(1 << 11)
-#define FLASH_CR_MER2		(1 << 15)
-#define FLASH_CR_STRT		(1 << 16)
-#define FLASH_CR_OPTSTRT	(1 << 17)
-#define FLASH_CR_FSTPG	 	(1 << 18)
-#define FLASH_CR_EOPIE		(1 << 24)
-#define FLASH_CR_ERRIE		(1 << 25)
-#define FLASH_CR_OBL_LAUNCH	(1 << 27)
-#define FLASH_CR_OPTLOCK	(1 << 30)
-#define FLASH_CR_LOCK		(1 << 31)
+#define FLASH_CR_BKER		(1u << 11)
+#define FLASH_CR_MER2		(1u << 15)
+#define FLASH_CR_STRT		(1u << 16)
+#define FLASH_CR_OPTSTRT	(1u << 17)
+#define FLASH_CR_FSTPG	 	(1u << 18)
+#define FLASH_CR_EOPIE		(1u << 24)
+#define FLASH_CR_ERRIE		(1u << 25)
+#define FLASH_CR_OBL_LAUNCH	(1u << 27)
+#define FLASH_CR_OPTLOCK	(1u << 30)
+#define FLASH_CR_LOCK		(1u << 31)
 
 #define FLASH_SR_EOP		(1 << 0)
 #define FLASH_SR_OPERR		(1 << 1)
@@ -738,7 +738,6 @@ static bool stm32l4_cmd_option(target *t, int argc, char *argv[])
 		0xFFFFFF00
 	};
 
-	uint32_t val;
 	uint32_t values[11] = { 0xFFEFF8AA, 0xFFFFFFFF, 0, 0x000000ff,
 							0x000000ff, 0xffffffff, 0, 0x000000ff, 0x000000ff };
 	int len;
@@ -792,7 +791,7 @@ static bool stm32l4_cmd_option(target *t, int argc, char *argv[])
 	}
 	for (int i = 0; i < len; i ++) {
 		uint32_t addr = fpec_base + i2offset[i];
-		val = target_mem_read32(t, fpec_base + i2offset[i]);
+		uint32_t val = target_mem_read32(t, fpec_base + i2offset[i]);
 		tc_printf(t, "0x%08X: 0x%08X\n", addr, val);
 	}
 	return true;

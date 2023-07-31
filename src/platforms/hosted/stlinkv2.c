@@ -529,8 +529,8 @@ int stlink_init(bmp_info_t *info)
 		}
 		char serial[64];
 		if (desc.iSerialNumber) {
-			int result = libusb_get_string_descriptor_ascii(sl->ul_libusb_device_handle,
-				desc.iSerialNumber, (uint8_t *)serial, sizeof(serial));
+			result = libusb_get_string_descriptor_ascii(sl->ul_libusb_device_handle,
+										desc.iSerialNumber, (uint8_t *)serial, sizeof(serial));
 			/* If the call fails and it's not because the device gave us STALL, continue to the next one */
 			if (result < 0 && result != LIBUSB_ERROR_PIPE) {
 				libusb_close(sl->ul_libusb_device_handle);

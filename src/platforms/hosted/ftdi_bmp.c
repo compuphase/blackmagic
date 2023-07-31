@@ -588,11 +588,11 @@ void libftdi_jtagtap_tdi_tdo_seq(
 	if (index)
 		libftdi_buffer_write(data, index);
 	if (DO) {
-		int index = 0;
 		uint8_t *tmp = alloca(rsize);
 		libftdi_buffer_read(tmp, rsize);
 		if(final_tms) rsize--;
 
+		index = 0;
 		while(rsize--) {
 			*DO++ = tmp[index++];
 		}

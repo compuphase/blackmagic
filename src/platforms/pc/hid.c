@@ -409,7 +409,6 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 			BOOLEAN res;
 			NTSTATUS nt_res;
 			wchar_t wstr[WSTR_LEN]; /* TODO: Determine Size */
-			size_t len;
 
 			/* VID/PID match. Create the record. */
 			tmp = (struct hid_device_info*) calloc(1, sizeof(struct hid_device_info));
@@ -437,7 +436,7 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 			cur_dev->next = NULL;
 			str = device_interface_detail_data->DevicePath;
 			if (str) {
-				len = strlen(str);
+				size_t len = strlen(str);
 				cur_dev->path = (char*) calloc(len+1, sizeof(char));
 				strncpy(cur_dev->path, str, len+1);
 				cur_dev->path[len] = '\0';

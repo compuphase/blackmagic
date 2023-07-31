@@ -456,7 +456,7 @@ static int kl_gen_flash_write(struct target_flash *f,
 			else
 				len = 0;
 			dest += kf->write_len;
-			src += kf->write_len;
+			src = (void*)((uint8_t*)src + kf->write_len);
 		} else {
 			return 1;
 		}

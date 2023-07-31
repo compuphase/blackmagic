@@ -226,16 +226,14 @@ static size_t sam_nvp_size(uint32_t cidr) {
  */
 bool sam4l_probe(target *t)
 {
-	size_t	ram_size, flash_size;
-
 	uint32_t cidr = target_mem_read32(t, SAM4L_CHIPID_CIDR);
 	if (((cidr >> CHIPID_CIDR_ARCH_SHIFT) & CHIPID_CIDR_ARCH_MASK) == SAM4L_ARCH) {
 		t->driver = "Atmel SAM4L";
 		/* this function says we need to do "extra" stuff after reset */
 		t->extended_reset = sam4l_extended_reset;
-		ram_size = sam_ram_size(cidr);
+		size_t ram_size = sam_ram_size(cidr);
 		target_add_ram(t, 0x20000000, ram_size);
-		flash_size = sam_nvp_size(cidr);
+		size_t flash_size = sam_nvp_size(cidr);
 		sam4l_add_flash(t, 0x0, flash_size);
 		DEBUG_INFO("\nSAM4L: RAM = 0x%x (%dK), FLASH = 0x%x (%dK)\n",
 			(unsigned int) ram_size, (unsigned int) (ram_size / 1024),
@@ -259,7 +257,6 @@ static void
 sam4l_extended_reset(target *t)
 {
 	uint32_t	reg;
-	int i;
 
 	DEBUG_INFO("SAM4L: Extended Reset\n");
 
@@ -271,11 +268,13 @@ sam4l_extended_reset(target *t)
 		/* write '1' bit to the status clear register */
 		target_mem_write32(t, SMAP_SCR, SMAP_SR_HCR);
 		/* waiting 250 loops for it to reset is arbitrary, it should happen right away */
+		int i;
 		for (i = 0; i < 250; i++) {
 			reg = target_mem_read32(t, SMAP_SR);
+			//??? test reg for reset clear
 		}
 		/* not sure what to do if we can't reset that bit */
-		if (i > 249) {
+		if (i >= 250) {
 			DEBUG_INFO("\nSAM4L: Reset failed. SMAP_SR has 0x%08lx\n",
 					   (long unsigned int) reg);
 		}
@@ -318,7 +317,7 @@ sam4l_flash_command(target *t, uint32_t page, uint32_t cmd)
 	/* load up the new command */
 	cmd_reg = (cmd & FLASHCALW_FCMD_CMD_MASK) |
 			  ((page & FLASHCALW_FCMD_PAGEN_MASK) << FLASHCALW_FCMD_PAGEN_SHIFT) |
-		  	  (0xA5 << FLASHCALW_FCMD_KEY_SHIFT);
+		  	  (0xA5u << FLASHCALW_FCMD_KEY_SHIFT);
 	DEBUG_INFO("\nSAM4L: sam4l_flash_command: Wrting command word 0x%08x\n",
 			   (unsigned int) cmd_reg);
 	/* and kick it off */
@@ -384,7 +383,6 @@ static int
 sam4l_flash_erase(struct target_flash *f, target_addr addr, size_t len)
 {
 	target *t = f->t;
-	uint16_t page;
 
 	DEBUG_INFO("SAM4L: flash erase address 0x%08x for %d bytes\n",
 		(unsigned int) addr, (unsigned int) len);
@@ -395,7 +393,7 @@ sam4l_flash_erase(struct target_flash *f, target_addr addr, size_t len)
 	 */
 
 	while (len) {
-		page = addr / SAM4L_PAGE_SIZE;
+		uint16_t page = addr / SAM4L_PAGE_SIZE;
 		if (sam4l_flash_command(t, page, FLASH_CMD_EP)) {
 			return -1;
 		}

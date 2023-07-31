@@ -587,7 +587,7 @@ static bool renesas_rv40_flash_write(struct target_flash *f, uint32_t dest, cons
 			target_mem_write16(t, RV40_CMD, *(uint16_t *)src);
 
 			/* 2 bytes of data */
-			src += 2U;
+			src = (void*)((uint8_t*)src + 2);
 		}
 
 		/* issue write end command */

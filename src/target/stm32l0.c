@@ -129,9 +129,9 @@
                                       STM32Lx_NVM_SR_SIZERR | \
                                       STM32Lx_NVM_SR_NOTZEROERR)
 
-#define STM32L0_NVM_OPTR_BOOT1       (1<<31)
-#define STM32Lx_NVM_OPTR_WDG_SW      (1<<20)
-#define STM32L0_NVM_OPTR_WPRMOD      (1<<8)
+#define STM32L0_NVM_OPTR_BOOT1       (1u<<31)
+#define STM32Lx_NVM_OPTR_WDG_SW      (1u<<20)
+#define STM32L0_NVM_OPTR_WPRMOD      (1u<<8)
 #define STM32Lx_NVM_OPTR_RDPROT_S    (0)
 #define STM32Lx_NVM_OPTR_RDPROT_M    (0xff)
 #define STM32Lx_NVM_OPTR_RDPROT_0    (0xaa)

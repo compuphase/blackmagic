@@ -353,7 +353,7 @@ static int ke04_flash_write(struct target_flash *f,
 		if (ke04_command(f->t, CMD_PROGRAM_FLASH, dest, src)) {
 			len  -= KE04_WRITE_LEN;
 			dest += KE04_WRITE_LEN;
-			src  += KE04_WRITE_LEN;
+			src  = (void*)((uint8_t*)src + KE04_WRITE_LEN);
 		} else {
 			return 1;
 		}

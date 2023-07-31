@@ -35,7 +35,7 @@ void __attribute__((naked))
 stm32f1_flash_write_stub(uint32_t *dest, uint32_t *src, uint32_t size)
 {
 	size /= 4;
-	for (int i; i < size; i++) {
+	for (int i = 0; i < size; i++) {
 		LMI_FLASH_FMA = (uint32_t)&dest[i];
 		LMI_FLASH_FMD = src[i];
 		LMI_FLASH_FMC = LMI_FLASH_FMC_WRKEY | LMI_FLASH_FMC_WRITE;

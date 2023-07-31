@@ -227,7 +227,7 @@ static void remotePacketProcessJTAG(unsigned i, char *packet)
 
             /* Mask extra bits on return value... */
             if (ticks < 64)
-                DO &= (1LL << ticks) - 1;
+                DO &= (1LLu << ticks) - 1;
 
             _respond(REMOTE_RESP_OK, DO);
         }
@@ -395,7 +395,6 @@ static void remotePacketProcessHL(unsigned i, char *packet)
         uint32_t address = remotehston(8, packet);
         packet += 8;
         uint32_t count = remotehston(8, packet);
-        packet += 8;
         adiv5_mem_read(&remote_ap, src, address, count);
         if (remote_ap.dp->fault == 0) {
             _respond_buf(REMOTE_RESP_OK, src, count);
