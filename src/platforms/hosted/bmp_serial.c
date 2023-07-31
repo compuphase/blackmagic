@@ -118,7 +118,9 @@ print_probes_info:
 
 					strncpy(info->serial, serial_number, sizeof info->serial);
 					strncpy(info->manufacturer, "BMP", sizeof info->manufacturer);
-					snprintf(info->product, sizeof info->product, "%ls", busReportedDeviceSesc);
+					int result = snprintf(info->product, sizeof info->product, "%ls", busReportedDeviceSesc);
+					if (result < 0)
+					    strcpy(info->product, "?");
 					/* Don't bother to parse the version string. It is a part of the
 					 * product description string. It seems that at the moment it
 					 * is only being used to print a version string in response

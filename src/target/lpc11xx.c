@@ -41,7 +41,7 @@
 
 /*
  * CHIP    Flash Ram Page Sector   Rsvd pages  EEPROM
- * LPX802    16k  2k   64   1024            2     -
+ * LPC802    16k  2k   64   1024            2     -
  * LPC804    32k  4k   64   1024            2     -
  * LPC8N04   32k  8k   64   1024           32     4k
  * LPC810     4k  1k   64   1024            -     -
@@ -321,9 +321,11 @@ bool lpc11xx_probe(target *t)
     case 0x00008652:  /* LPC865M201JHI48 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
     case 0x00008654:  /* LPC865M201JHI33 - M0+ 64K Flash 8K SRAM - UM11607 Rev 3 2023 Ch 4.5.12 Table 20 */
         t->driver = "LPC86x";
-        #define IAP_LOCATION *(volatile unsigned int *)(0x0F001D98) /* see UM11607 Ch 4.6 */
         target_add_ram(t, LPC_RAM_BASE, lpc_sram_size(device_id, 0x2000));
-        lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x400, IAP_LOCATION, 0);
+        {
+            unsigned int iap_entry = target_mem_read32(t, 0x0F001D98);    /* see UM11607 Ch 4.6 -> 0x0f001d84 */
+            lpc11xx_add_flash(t, LPC_FLASH_BASE, lpc_flash_size(device_id, 0x10000), 0x400, iap_entry, 0);
+        }
         target_add_commands(t, lpc11xx_cmd_list, t->driver);
         #undef IAP_LOCATION
         return true;

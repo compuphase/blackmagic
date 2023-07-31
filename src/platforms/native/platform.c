@@ -256,7 +256,7 @@ void platform_idle_processing(void)
            it is in range. */
         if (platform_target_get_power()) {
             uint32_t v = platform_target_voltage_sense();
-            if (v <= 31 || v >= 35) {
+            if (v < 31 || v >= 35) {
                 /* One of two things happened: backfeeding by the target that
                    runs at a higher voltage than VCC, or the target drawing way
                    too much current (making the voltage drop).

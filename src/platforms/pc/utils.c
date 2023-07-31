@@ -47,7 +47,7 @@ void platform_delay(uint32_t ms)
 #if defined(_WIN32) && !defined(__MINGW32__)
 	Sleep(ms);
 #else
-# if !defined(usleep)
+# if !defined(usleep) && !defined(__MSYS__)
 	int usleep(unsigned int);
 # endif
 	usleep(ms * 1000);

@@ -37,6 +37,13 @@ CFLAGS += -D_WIN32_WINNT=0x600
 SRC += 	 serial_win.c
 LDFLAGS += -lws2_32
 LDFLAGS += -lsetupapi
+else ifneq (, $(findstring pc-msys, $(SYS)))
+# Build for windows versions Vista, and above, where the
+# 'SetupDiGetDevicePropertyW()' function is available
+CFLAGS += -D_WIN32_WINNT=0x600
+SRC += 	 serial_win.c
+LDFLAGS += -lws2_32
+LDFLAGS += -lsetupapi
 #https://github.com/dmlc/xgboost/issues/1945 indicates macosx as indicator
 else ifneq (filter, macosx darwin, $(SYS))
 SRC += serial_unix.c

@@ -451,7 +451,7 @@ bool cortexm_probe(ADIv5_AP_t *ap)
         PROBE(msp432_probe);
         break;
     case AP_DESIGNER_SPECULAR:
-        PROBE(lpc11xx_probe); /* LPC845 */
+        PROBE(lpc11xx_probe); /* LPC845, LPC865 */
         break;
     case AP_DESIGNER_RASPBERRY:
         PROBE(rp_probe);

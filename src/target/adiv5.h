@@ -101,7 +101,7 @@
 #define AP_DESIGNER_INFINEON     0x041  /* Cypress Semiconductor */
 #define AP_DESIGNER_NORDIC       0x244  /* Infineon Technologies */
 #define AP_DESIGNER_ARM          0x43b  /* Nordic Semiconductor */
-#define AP_DESIGNER_SPECULAR     0x501  /* Specular Networks, but code also for LPC845 */
+#define AP_DESIGNER_SPECULAR     0x501  /* Specular Networks, but code also for LPC845/LPC865 */
 #define AP_DESIGNER_ENERGY_MICRO 0x673  /* Energy Micro */
 #define AP_DESIGNER_GIGADEVICE   0x751  /* GigaDevice */
 #define AP_DESIGNER_RASPBERRY    0x913  /* Raspberry Pi */
