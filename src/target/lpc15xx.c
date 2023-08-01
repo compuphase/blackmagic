@@ -55,10 +55,10 @@ static bool lpc15xx_part_id(target *t, int argc, const char *argv[])
     (void)argc;
     (void)argv;
     struct lpc_flash *f =(struct lpc_flash*)t->flash;
-    uint32_t partid;
-    if (lpc_iap_call(f, &partid, IAP_CMD_PARTID))
+    uint32_t partid[4]; /* 4 words required, because of lpc_iap_call */
+    if (lpc_iap_call(f, partid, IAP_CMD_PARTID))
         return false;
-    tc_printf(t, "Part ID: 0x%08x\n", partid);
+    tc_printf(t, "Part ID: 0x%08x\n", partid[0]);
     return true;
 }
 

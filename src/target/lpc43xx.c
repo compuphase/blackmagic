@@ -48,6 +48,7 @@
 static bool lpc43xx_cmd_erase(target *t, int argc, const char *argv[]);
 static bool lpc43xx_cmd_reset(target *t, int argc, const char *argv[]);
 static bool lpc43xx_cmd_mkboot(target *t, int argc, const char *argv[]);
+static bool lpc43xx_part_id(target *t, int argc, const char *argv[]);
 static int lpc43xx_flash_init(target *t);
 static int lpc43xx_flash_erase(struct target_flash *f, target_addr addr, size_t len);
 static void lpc43xx_set_internal_clock(target *t);
@@ -57,6 +58,7 @@ static void lpc43xx_wdt_pet(target *t);
 const struct command_s lpc43xx_cmd_list[] = {
     {"erase_mass", lpc43xx_cmd_erase, "Erase entire flash memory"},
     {"mkboot", lpc43xx_cmd_mkboot, "Make flash bank bootable"},
+    {"partid", lpc43xx_part_id, "Return the 32-bit part-id (aka device-id or chip-id)."},
     {"reset", lpc43xx_cmd_reset, "Reset target"},
     {NULL, NULL, NULL}
 };
@@ -241,6 +243,20 @@ static bool lpc43xx_cmd_mkboot(target *t, int argc, const char *argv[])
     }
 
     tc_printf(t, "Set bootable OK.\n");
+    return true;
+}
+
+static bool lpc43xx_part_id(target *t, int argc, const char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    lpc43xx_flash_init(t);
+    struct lpc_flash *f = (struct lpc_flash*)t->flash;
+    uint32_t partid[4]; /* 4 words required, because of lpc_iap_call */
+    if (lpc_iap_call(f, partid, IAP_CMD_PARTID))
+        return false;
+    tc_printf(t, "Part ID: 0x%08x\n", partid[0]);
     return true;
 }
 

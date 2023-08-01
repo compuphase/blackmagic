@@ -113,7 +113,8 @@ enum iap_status lpc_iap_call(struct lpc_flash *f, void *result, enum iap_cmd cmd
     uint32_t backup_regs[t->regs_size / sizeof(uint32_t)];
     target_regs_read(t, backup_regs);
 
-    /* fill out the remainder of the parameters */
+    /* fill out the remainder of the parameters (which may be just dummy values,
+       depending on whether the command actually takes parameters) */
     va_list ap;
     va_start(ap, cmd);
     for (int i = 0; i < 4; i++)
