@@ -58,22 +58,19 @@ inline static bool recv_set_nak()
     return recv_bytes_free() < 2U * CDCACM_PACKET_SIZE;
 }
 
-/* usbuart_usb_out_cb is called when usb uart has received new data for target.
-   this routine has to be fast */
-void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
+/* Called from usbuart_usb_out_cb(), which is called when usb uart has received
+   new data for target. This routine has to be fast. */
+void rtt_serial_receive_callback(usbd_device *dev, uint8_t ep)
 {
-    (void)dev;
-    (void)ep;
-
     /* close flow control while processing packet */
-    usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 1);
+    usbd_ep_nak_set(dev, ep, 1);
 
     char usb_buf[CDCACM_PACKET_SIZE];
-    const uint16_t len = usbd_ep_read_packet(usbdev, CDCACM_UART_DATA_EP, usb_buf, CDCACM_PACKET_SIZE);
+    const uint16_t len = usbd_ep_read_packet(dev, ep, usb_buf, CDCACM_PACKET_SIZE);
 
     /* skip flag: drop packet if not enough free buffer space */
     if (rtt_flag_skip && len > recv_bytes_free()) {
-        usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 0);
+        usbd_ep_nak_set(dev, ep, 0);
         return;
     }
 
@@ -88,7 +85,7 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 
     /* block flag: flow control closed if not enough free buffer space */
     if (!(rtt_flag_block && recv_set_nak()))
-        usbd_ep_nak_set(usbdev, CDCACM_UART_DATA_EP, 0);
+        usbd_ep_nak_set(dev, ep, 0);
 }
 
 /* rtt host to target: read one character */

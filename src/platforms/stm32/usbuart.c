@@ -30,6 +30,8 @@
 
 #include "general.h"
 #include "cdcacm.h"
+#include "rtt.h"
+#include "rtt_if.h"
 
 #ifdef DMA_STREAM0
 #define dma_channel_reset(dma, channel) dma_stream_reset(dma, channel)
@@ -259,25 +261,27 @@ static void usbuart_change_dma_tx_buf(void)
     buf_tx_act_idx ^= 1;
 }
 
-#ifndef ENABLE_RTT
 void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 {
-    (void)ep;
+#ifdef ENABLE_RTT
+	if (rtt_enabled) {
+		rtt_serial_receive_callback(dev, ep);
+		return;
+	}
+#endif
 
-    usbd_ep_nak_set(dev, CDCACM_UART_DATA_EP, 1);
+    usbd_ep_nak_set(dev, ep, 1);
 
     /* Read new packet directly into TX buffer */
     uint8_t *const tx_buf_ptr = &buf_tx[buf_tx_act_idx * TX_BUF_SIZE];
-    const uint16_t len = usbd_ep_read_packet(dev, CDCACM_UART_DATA_EP,
-                        tx_buf_ptr + buf_tx_act_sz, CDCACM_PACKET_SIZE);
+    const uint16_t len = usbd_ep_read_packet(dev, ep, tx_buf_ptr + buf_tx_act_sz, CDCACM_PACKET_SIZE);
 
 #if defined(BLACKMAGIC)
     /* Don't bother if uart is disabled.
      * This will be the case on mini while we're being debugged.
      */
-    if(!(RCC_APB2ENR & RCC_APB2ENR_USART1EN) &&
-       !(RCC_APB1ENR & RCC_APB1ENR_USART2EN)) {
-        usbd_ep_nak_set(dev, CDCACM_UART_DATA_EP, 0);
+    if(!(RCC_APB2ENR & RCC_APB2ENR_USART1EN) && !(RCC_APB1ENR & RCC_APB1ENR_USART2EN)) {
+        usbd_ep_nak_set(dev, ep, 0);
         return;
     }
 #endif
@@ -297,9 +301,8 @@ void usbuart_usb_out_cb(usbd_device *dev, uint8_t ep)
 
     /* Enable USBUART TX packet reception if buffer has enough space */
     if (TX_BUF_SIZE - buf_tx_act_sz >= CDCACM_PACKET_SIZE)
-        usbd_ep_nak_set(dev, CDCACM_UART_DATA_EP, 0);
+        usbd_ep_nak_set(dev, ep, 0);
 }
-#endif
 
 #ifdef USBUART_DEBUG
 int usbuart_debug_write(const char *buf, size_t len)
