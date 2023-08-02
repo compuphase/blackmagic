@@ -3,7 +3,7 @@
 **Nota Bene** This is a fork of the original [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic). It takes a parallel route to the original project, with a focus on stability and reliability. For documentation on the Black Magic Probe, please see the original project, or read my free e-book [Embedded Debugging with the Black Magic Probe](https://github.com/compuphase/Black-Magic-Probe-Book).
 
 ## Status
-At this point in development, the project should be considered in **beta stage**. There are no *known* bugs, but a number of functions still have to be verified.
+At this point in development, the project should be considered in **beta stage**. There are no *known* bugs, but I have only a limited number of microcontroller evaluation boards, so a lot of the microcontroller support is not tested by me.
 
 This branch is based on release 1.7.1 of the [Black Magic Probe project](https://github.com/blackmagic-debug/blackmagic) Since then, functionality and microcontroller support are being copied and/or adapted from the mainline release to this fork.
 
