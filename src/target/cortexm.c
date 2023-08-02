@@ -457,7 +457,7 @@ bool cortexm_probe(ADIv5_AP_t *ap)
         PROBE(rp_probe);
         break;
     case AP_MANUFACTURER_RENESAS:
-        //TODO PROBE(renesas_probe);
+        PROBE(renesas_probe);
         break;
     default:
         if (ap->ap_designer != AP_DESIGNER_ARM) {

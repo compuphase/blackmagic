@@ -350,7 +350,7 @@ static void rp_add_flash(target *t, uint32_t addr, size_t length)
         f->blocksize = 0x1000;
         f->erase = rp_flash_erase;
         f->write = rp_flash_write;
-        f->buf_size = 2048; /* Max buffer size used eotherwise */
+        f->buf_size = 2048; /* Max buffer size used otherwise */
         target_add_flash(t, f);
 }
 

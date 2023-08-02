@@ -287,6 +287,7 @@ struct renesas_priv {
 	uint8_t pnr[17]; /* 16-byte PNR + 1-byte null termination */
 	pnr_series_t series;
 	uint32_t flash_root_table; /* if applicable */
+	bool     is_prepared;
 };
 
 static uint32_t renesas_fmifrt_read(target *t)
@@ -479,6 +480,10 @@ static bool renesas_rv40_prepare(struct target_flash *f)
 {
 	target *t = f->t;
 
+	struct renesas_priv *priv_storage = (struct renesas_priv*)t->target_storage;
+	if (!priv_storage || priv_storage->is_prepared)
+		return true;
+
 	if (!(target_mem_read32(t, RV40_FSTATR) & RV40_FSTATR_RDY) || target_mem_read16(t, RV40_FENTRYR) != 0) {
 		DEBUG_WARN("flash is not ready, may be hanging mid unfinished command due to something going wrong, "
 				   "please power on reset the device\n");
@@ -495,17 +500,18 @@ static bool renesas_rv40_prepare(struct target_flash *f)
 	return renesas_rv40_pe_mode(t, pe_mode) && !renesas_rv40_error_check(t, RV40_FSTATR_ILGLERR);
 }
 
-static bool renesas_rv40_done(struct target_flash *f)
+static int renesas_rv40_done(struct target_flash *f)
 {
 	target *t = f->t;
 
 	/* return to read mode */
-	return renesas_rv40_pe_mode(t, PE_MODE_READ);
+	return renesas_rv40_pe_mode(t, PE_MODE_READ) ? 0 : 1;
 }
 
 /* !TODO: implement blank check */
-static bool renesas_rv40_flash_erase(struct target_flash *f, uint32_t addr, size_t len)
+static int renesas_rv40_flash_erase(struct target_flash *f, uint32_t addr, size_t len)
 {
+	renesas_rv40_prepare(f);
 	target *t = f->t;
 
 	/* code flash or data flash operation */
@@ -542,18 +548,19 @@ static bool renesas_rv40_flash_erase(struct target_flash *f, uint32_t addr, size
 		/* Read FRDY bit until it has been set to 1 indicating that the current  operation is complete.*/
 		while (!(target_mem_read32(t, RV40_FSTATR) & RV40_FSTATR_RDY)) {
 			if (target_check_error(t) || platform_timeout_is_expired(&timeout))
-				return false;
+				return -1;
 		}
 
 		if (renesas_rv40_error_check(t, RV40_FSTATR_ERSERR | RV40_FSTATR_ILGLERR))
-			return false;
+			return -2;
 	}
 
-	return true;
+	return 0;
 }
 
-static bool renesas_rv40_flash_write(struct target_flash *f, uint32_t dest, const void *src, size_t len)
+static int renesas_rv40_flash_write(struct target_flash *f, uint32_t dest, const void *src, size_t len)
 {
+	renesas_rv40_prepare(f);
 	target *t = f->t;
 
 	/* code flash or data flash operation */
@@ -597,11 +604,13 @@ static bool renesas_rv40_flash_write(struct target_flash *f, uint32_t dest, cons
 		/* read FRDY bit until it has been set to 1 indicating that the current operation is complete.*/
 		while (!(target_mem_read32(t, RV40_FSTATR) & RV40_FSTATR_RDY)) {
 			if (target_check_error(t) || platform_timeout_is_expired(&timeout))
-				return false;
+				return -1;
 		}
 	}
 
-	return !renesas_rv40_error_check(t, RV40_FSTATR_PRGERR | RV40_FSTATR_ILGLERR);
+	if (renesas_rv40_error_check(t, RV40_FSTATR_PRGERR | RV40_FSTATR_ILGLERR))
+	  return -2;
+	return 0;
 }
 
 static void renesas_add_rv40_flash(target *t, uint32_t addr, size_t length)
@@ -617,17 +626,14 @@ static void renesas_add_rv40_flash(target *t, uint32_t addr, size_t length)
 	f->erased = 0xffU;
 	f->erase = renesas_rv40_flash_erase;
 	f->write = renesas_rv40_flash_write;
-	f->prepare = renesas_rv40_prepare;
 	f->done = renesas_rv40_done;
 
 	if (code_flash) {
 		f->blocksize = RV40_CF_REGION1_BLOCK_SIZE;
-		f->writebufsize = RV40_CF_WRITE_SIZE * 8U;
-		f->writesize = RV40_CF_WRITE_SIZE;
+		f->buf_size = RV40_CF_WRITE_SIZE;
 	} else {
 		f->blocksize = RV40_DF_BLOCK_SIZE;
-		f->writebufsize = RV40_DF_BLOCK_SIZE * 8U;
-		f->writesize = RV40_DF_WRITE_SIZE;
+		f->buf_size = RV40_DF_WRITE_SIZE;
 	}
 
 	target_add_flash(t, f);
@@ -699,7 +705,7 @@ bool renesas_probe(target *t)
 	target_mem_write8(t, SYSC_SYOCDCR, SYOCDCR_DBGEN);
 
 	/* Read the PNR */
-	switch (t->part_id) {
+	switch (t->idcode) {
 		// case :
 		/* mcus with PNR located at 0x01001c10
 		 * ra2l1 (part_id wanted)
@@ -753,14 +759,14 @@ bool renesas_probe(target *t)
 		if (renesas_pnr_read(t, RENESAS_FIXED2_PNR, pnr)) {
 			DEBUG_WARN("Found renesas chip (%.*s) with pnr location RENESAS_FIXED2_PNR and unsupported Part ID %" PRIx16
 					   " please report it\n",
-				sizeof(pnr), pnr, t->part_id);
+				sizeof(pnr), pnr, t->idcode);
 			break;
 		}
 
 		if (renesas_pnr_read(t, RENESAS_FIXED1_PNR, pnr)) {
 			DEBUG_WARN("Found renesas chip (%.*s) with pnr location RENESAS_FIXED1_PNR and unsupported Part ID "
 					   "0x%" PRIx16 " please report it\n",
-				sizeof(pnr), pnr, t->part_id);
+				sizeof(pnr), pnr, t->idcode);
 			break;
 		}
 
@@ -768,7 +774,7 @@ bool renesas_probe(target *t)
 		if (renesas_pnr_read(t, RENESAS_FMIFRT_PNR(flash_root_table), pnr)) {
 			DEBUG_WARN("Found renesas chip (%.*s) with Flash Root Table and unsupported Part ID 0x%" PRIx16 " "
 					   "please report it\n",
-				sizeof(pnr), pnr, t->part_id);
+				sizeof(pnr), pnr, t->idcode);
 			break;
 		}
 

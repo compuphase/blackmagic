@@ -51,6 +51,7 @@ SRC =			\
 	nxpke04.c	\
 	platform.c	\
 	remote.c	\
+	renesas.c	\
 	rp.c		\
 	sam3x.c		\
 	sam4l.c		\
