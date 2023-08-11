@@ -671,7 +671,7 @@ static void rp_rescue_setup(ADIv5_DP_t *dp)
 void adiv5_dp_init(ADIv5_DP_t *dp)
 {
 #define DPIDR_PARTNO_MASK 0x0ff00000
-/* Check IDCODE for a valid designer and sensible PARTNO*/
+    /* Check IDCODE for a valid designer and sensible PARTNO*/
     if (((dp->idcode & 0xfff) == 0)  ||
         ((dp->idcode & DPIDR_PARTNO_MASK)) == DPIDR_PARTNO_MASK) {
         DEBUG_WARN("Invalid DP idcode %08" PRIx32 "\n", dp->idcode);

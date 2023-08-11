@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2011  Black Sphere Technologies Ltd.
  * Written by Gareth McMullin <gareth@blacksphere.co.nz>
+ * Copyright (C) 2022-2023 1BitSquared <info@1bitsquared.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +22,7 @@
 /* This file implements STM32 target specific functions for detecting
  * the device, providing the XML memory map and Flash memory programming.
  *
- * Refereces:
+ * References:
  * ST doc - RM0008
  *   Reference manual - STM32F101xx, STM32F102xx, STM32F103xx, STM32F105xx
  *   and STM32F107xx advanced ARM-based 32-bit MCUs
@@ -49,10 +50,8 @@ const struct command_s stm32f1_cmd_list[] = {
 };
 
 
-static int stm32f1_flash_erase(struct target_flash *f,
-                               target_addr addr, size_t len);
-static int stm32f1_flash_write(struct target_flash *f,
-                               target_addr dest, const void *src, size_t len);
+static int stm32f1_flash_erase(struct target_flash *f, target_addr addr, size_t len);
+static int stm32f1_flash_write(struct target_flash *f, target_addr dest, const void *src, size_t len);
 
 /* Flash Program ad Erase Controller Register Map */
 #define FPEC_BASE   0x40022000
@@ -65,6 +64,7 @@ static int stm32f1_flash_write(struct target_flash *f,
 #define FLASH_OBR   (FPEC_BASE+0x1C)
 #define FLASH_WRPR  (FPEC_BASE+0x20)
 
+#define FLASH_BANK1_OFFSET 0x00
 #define FLASH_BANK2_OFFSET 0x40
 #define FLASH_BANK_SPLIT   0x08080000
 
@@ -82,24 +82,35 @@ static int stm32f1_flash_write(struct target_flash *f,
 
 #define FLASH_SR_BSY    (1 << 0)
 
-#define FLASH_OBP_RDP 0x1FFFF800
-#define FLASH_OBP_RDP_KEY 0x5aa5
+#define FLASH_OBP_RDP       0x1FFFF800
+#define FLASH_OBP_RDP_KEY   0x5AA5
 #define FLASH_OBP_RDP_KEY_F3 0x55AA
 
 #define KEY1 0x45670123
 #define KEY2 0xCDEF89AB
 
 #define SR_ERROR_MASK   0x14
-#define SR_EOP      0x20
+#define SR_PROG_ERROR   0x04
+#define SR_EOP          0x20
 
-#define DBGMCU_IDCODE   0xE0042000
-#define DBGMCU_IDCODE_F0    0x40015800
+#define DBGMCU_IDCODE           0xE0042000
+#define DBGMCU_IDCODE_F0        0x40015800
+#define DBGMCU_IDCODE_GD32E5    0xE0044000
 
-#define FLASHSIZE     0x1FFFF7E0
-#define FLASHSIZE_F0  0x1FFFF7CC
+#define GD32Fx_FLASHSIZE        0x1FFFF7E0
+#define GD32F0_FLASHSIZE        0x1FFFF7CC
 
-static void stm32f1_add_flash(target *t,
-                              uint32_t addr, size_t length, size_t erasesize)
+#define AT32F4x_IDCODE_SERIES_MASK 0xFFFFF000
+#define AT32F4x_IDCODE_PART_MASK   0x00000FFF
+#define AT32F41_SERIES             0x70030000
+#define AT32F40_SERIES             0x70050000
+#define AT32F43_SERIES_4K          0x70084000
+#define AT32F43_SERIES_2K          0x70083000
+
+#define DBGMCU_IDCODE_MM32L0    0x40013400
+#define DBGMCU_IDCODE_MM32F3    0x40007080
+
+static void stm32f1_add_flash(target *t, uint32_t addr, size_t length, size_t erasesize)
 {
     struct target_flash *f = calloc(1, sizeof(*f));
     if (!f) {           /* calloc failed: heap exhaustion */
@@ -117,53 +128,73 @@ static void stm32f1_add_flash(target *t,
     target_add_flash(t, f);
 }
 
+static uint16_t stm32f1_read_idcode(target *t)
+{
+    if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M0 || (t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M23)
+        return target_mem_read32(t, DBGMCU_IDCODE_F0) & 0xfff;
+    /* Is this a Cortex-M33 core with STM32F1-style peripherals? (GD32E50x) */
+    if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M33)
+        return target_mem_read32(t, DBGMCU_IDCODE_GD32E5) & 0xfff;
+
+    return target_mem_read32(t, DBGMCU_IDCODE) & 0xfff;
+}
+
 /**
-    \brief identify the correct gd32 f1/f3 chip
-    GD32 : STM32 compatible chip
+    \brief GD32F1, GD32F2 and GD32F3 chips
+           (STM32 compatible chips)
 */
 bool gd32f1_probe(target *t)
 {
-    uint16_t stored_idcode = t->idcode;
-    if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M23)
-        t->idcode = target_mem_read32(t, DBGMCU_IDCODE_F0) & 0xfff;
-    else
-        t->idcode = target_mem_read32(t, DBGMCU_IDCODE) & 0xfff;
-    uint32_t signature= target_mem_read32(t, FLASHSIZE);
-    uint32_t flashSize=signature & 0xFFFF;
-    uint32_t ramSize=signature >>16 ;
-    switch(t->idcode) {
-    case 0x414:  /* Gigadevice gd32f303 */
+    uint16_t device_id = stm32f1_read_idcode(t);
+    size_t block_size = 0x400;
+
+    switch(device_id) {
+    case 0x414:  /* Gigadevice GD32F303 */
+    case 0x430:
         t->driver = "GD32F3";
         break;
-    case 0x410:  /* Gigadevice gd32f103, gd32e230 */
+    case 0x418:
+        t->driver = "GD32F2";
+        break;
+    case 0x410:  /* Gigadevice GD32F103, GD32E230 */
         if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M23)
             t->driver = "GD32E230";
+        else if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M4)
+            t->driver = "GD32F3";
         else
             t->driver = "GD32F1";
         break;
+    case 0x444: /* Gigadevice GD32E50x */
+        t->driver = "GD32E5";
+        block_size = 0x2000;
+        break;
     default:
-        t->idcode = stored_idcode;
         return false;
     }
-    target_add_ram(t, 0x20000000, ramSize*1024);
-    stm32f1_add_flash(t, 0x8000000, flashSize*1024, 0x400);
+
+    const uint32_t signature = target_mem_read32(t, GD32Fx_FLASHSIZE);
+    const uint16_t flash_size = signature & 0xffffU;
+    const uint16_t ram_size = signature >> 16U;
+
+    t->idcode = device_id;
+    //TODO t->mass_erase = stm32f1_mass_erase;
+    target_add_ram(t, 0x20000000, ram_size*1024);
+    stm32f1_add_flash(t, 0x8000000, flash_size*1024, block_size);
     target_add_commands(t, stm32f1_cmd_list, t->driver);
     return true;
 }
 /**
-    \brief identify the stm32f1 chip
+    \brief Identify genuine STM32F0/F1/F3 devices.
 */
 
 bool stm32f1_probe(target *t)
 {
-    uint16_t stored_idcode = t->idcode;
-    if ((t->cpuid & CPUID_PARTNO_MASK) == CORTEX_M0)
-        t->idcode = target_mem_read32(t, DBGMCU_IDCODE_F0) & 0xfff;
-    else
-        t->idcode = target_mem_read32(t, DBGMCU_IDCODE) & 0xfff;
-    size_t flash_size;
+    //TODO t->mass_erase = stm32f1_mass_erase;
+    size_t flash_size = 0;
     size_t block_size = 0x400;
-    switch(t->idcode) {
+
+    const uint16_t device_id = stm32f1_read_idcode(t);
+    switch (device_id) {
     case 0x29b:  /* CS clone */
     case 0x410:  /* Medium density */
     case 0x412:  /* Low density */
@@ -171,7 +202,7 @@ bool stm32f1_probe(target *t)
         target_add_ram(t, 0x20000000, 0x5000);
         stm32f1_add_flash(t, 0x8000000, 0x20000, 0x400);
         target_add_commands(t, stm32f1_cmd_list, "STM32 LD/MD/VL-LD/VL-MD");
-        /* Test for non-genuine parts with Core rev 2*/
+        /* Test for clone parts with Core rev 2*/
         ADIv5_AP_t *ap = cortexm_ap(t);
         if ((ap->idr >> 28) > 1) {
             t->driver = "STM32F1 (clone) medium density";
@@ -181,17 +212,22 @@ bool stm32f1_probe(target *t)
         } else {
             t->driver = "STM32F1 medium density";
         }
+        t->idcode = device_id;
         return true;
+
     case 0x414:  /* High density */
     case 0x418:  /* Connectivity Line */
     case 0x428:  /* Value Line, High Density */
         t->driver = "STM32F1  VL density";
+        t->idcode = device_id;
         target_add_ram(t, 0x20000000, 0x10000);
         stm32f1_add_flash(t, 0x8000000, 0x80000, 0x800);
         target_add_commands(t, stm32f1_cmd_list, "STM32 HF/CL/VL-HD");
         return true;
+
     case 0x430:  /* XL-density */
         t->driver = "STM32F1  XL density";
+        t->idcode = device_id;
         target_add_ram(t, 0x20000000, 0x18000);
         stm32f1_add_flash(t, 0x8000000, 0x80000, 0x800);
         stm32f1_add_flash(t, 0x8080000, 0x80000, 0x800);
@@ -206,53 +242,58 @@ bool stm32f1_probe(target *t)
     case 0x432:  /* STM32F37x */
     case 0x439:  /* STM32F302C8 */
         t->driver = "STM32F3";
+        t->idcode = device_id;
         target_add_ram(t, 0x20000000, 0x10000);
         stm32f1_add_flash(t, 0x8000000, 0x80000, 0x800);
         target_add_commands(t, stm32f1_cmd_list, "STM32F3");
         return true;
+
     case 0x444:  /* STM32F03 RM0091 Rev.7, STM32F030x[4|6] RM0360 Rev. 4*/
         t->driver = "STM32F03";
         flash_size = 0x8000;
         break;
+
     case 0x445:  /* STM32F04 RM0091 Rev.7, STM32F070x6 RM0360 Rev. 4*/
         t->driver = "STM32F04/F070x6";
         flash_size = 0x8000;
         break;
+
     case 0x440:  /* STM32F05 RM0091 Rev.7, STM32F030x8 RM0360 Rev. 4*/
         t->driver = "STM32F05/F030x8";
         flash_size = 0x10000;
         break;
+
     case 0x448:  /* STM32F07 RM0091 Rev.7, STM32F070xB RM0360 Rev. 4*/
         t->driver = "STM32F07";
         flash_size = 0x20000;
         block_size = 0x800;
         break;
+
     case 0x442:  /* STM32F09 RM0091 Rev.7, STM32F030xC RM0360 Rev. 4*/
         t->driver = "STM32F09/F030xC";
         flash_size = 0x40000;
         block_size = 0x800;
         break;
+
     default:     /* NONE */
-        t->idcode = stored_idcode;
         return false;
     }
 
+    t->idcode = device_id;
     target_add_ram(t, 0x20000000, 0x5000);
     stm32f1_add_flash(t, 0x8000000, flash_size, block_size);
     target_add_commands(t, stm32f1_cmd_list, "STM32F0");
     return true;
 }
 
-static int stm32f1_flash_unlock(target *t, uint32_t bank_offset)
+static bool stm32f1_flash_unlock(target *t, uint32_t bank_offset)
 {
     target_mem_write32(t, FLASH_KEYR + bank_offset, KEY1);
     target_mem_write32(t, FLASH_KEYR + bank_offset, KEY2);
     uint32_t cr = target_mem_read32(t, FLASH_CR);
-    if (cr & FLASH_CR_LOCK) {
+    if (cr & FLASH_CR_LOCK)
         DEBUG_WARN("unlock failed, cr: 0x%08" PRIx32 "\n", cr);
-        return -1;
-    }
-    return 0;
+    return (cr & FLASH_CR_LOCK) == 0;
 }
 
 static int stm32f1_flash_erase(struct target_flash *f,
@@ -263,10 +304,10 @@ static int stm32f1_flash_erase(struct target_flash *f,
     target_addr start = addr;
 
     if ((t->idcode == 0x430) && (end >= FLASH_BANK_SPLIT))
-        if (stm32f1_flash_unlock(t, FLASH_BANK2_OFFSET))
+        if (!stm32f1_flash_unlock(t, FLASH_BANK2_OFFSET))
             return -1;
     if (addr < FLASH_BANK_SPLIT)
-        if (stm32f1_flash_unlock(t, 0))
+        if (!stm32f1_flash_unlock(t, 0))
             return -1;
     while(len) {
         uint32_t bank_offset = 0;
@@ -367,7 +408,7 @@ static bool stm32f1_cmd_erase_mass(target *t, int argc, const char **argv)
 {
     (void)argc;
     (void)argv;
-    if (stm32f1_flash_unlock(t, 0))
+    if (!stm32f1_flash_unlock(t, 0))
         return false;
 
     /* Flash mass erase start instruction */
@@ -384,7 +425,7 @@ static bool stm32f1_cmd_erase_mass(target *t, int argc, const char **argv)
     if ((sr & SR_ERROR_MASK) || !(sr & SR_EOP))
         return false;
     if (t->idcode == 0x430) {
-        if (stm32f1_flash_unlock(t, FLASH_BANK2_OFFSET))
+        if (!stm32f1_flash_unlock(t, FLASH_BANK2_OFFSET))
             return false;
 
         /* Flash mass erase start instruction on bank 2*/
@@ -449,7 +490,7 @@ static bool stm32f1_option_write(target *t, uint32_t addr, uint16_t value)
         return true;
     /* Check for erased value */
     if (opt_val[index] != 0xffff)
-        if (!(stm32f1_option_erase(t)))
+        if (!stm32f1_option_erase(t))
             return false;
     opt_val[index] = value;
     /* Write changed values*/
@@ -462,10 +503,7 @@ static bool stm32f1_option_write(target *t, uint32_t addr, uint16_t value)
 
 static bool stm32f1_cmd_option(target *t, int argc, const char **argv)
 {
-    uint32_t addr, val;
     uint32_t flash_obp_rdp_key;
-    uint32_t rdprt;
-
     switch(t->idcode) {
     case 0x422:  /* STM32F30x */
     case 0x432:  /* STM32F37x */
@@ -477,42 +515,52 @@ static bool stm32f1_cmd_option(target *t, int argc, const char **argv)
     case 0x442:  /* STM32F09 RM0091 Rev.7, STM32F030xC RM0360 Rev. 4*/
         flash_obp_rdp_key = FLASH_OBP_RDP_KEY_F3;
         break;
-    default: flash_obp_rdp_key = FLASH_OBP_RDP_KEY;
+    default: 
+	    flash_obp_rdp_key = FLASH_OBP_RDP_KEY;
     }
-    rdprt = target_mem_read32(t, FLASH_OBR) & FLASH_OBR_RDPRT;
-    if (stm32f1_flash_unlock(t, 0))
+    uint32_t read_protected = target_mem_read32(t, FLASH_OBR) & FLASH_OBR_RDPRT;
+    bool erase_requested = (argc == 2 && strcmp(argv[1], "erase") == 0);
+    /* Fast-exit if the Flash is not readable and the user didn't ask us to erase the option bytes */
+    if (read_protected && !erase_requested) {
+        tc_printf(t, "Device is Read Protected\nUse `monitor option erase` to unprotect and erase device\n");
+        return true;
+    }
+
+    /* Unprotect the option bytes so we can modify them */
+    if (!stm32f1_flash_unlock(t, FLASH_BANK1_OFFSET))
         return false;
     target_mem_write32(t, FLASH_OPTKEYR, KEY1);
     target_mem_write32(t, FLASH_OPTKEYR, KEY2);
 
-    if ((argc == 2) && !strcmp(argv[1], "erase")) {
-        stm32f1_option_erase(t);
+    if (erase_requested) {
+        /* When the user asks us to erase the option bytes, kick of an erase */
+        if (!stm32f1_option_erase(t))
+            return false;
         stm32f1_option_write_erased(t, FLASH_OBP_RDP, flash_obp_rdp_key);
-    } else if (rdprt) {
-        tc_printf(t, "Device is Read Protected\n");
-        tc_printf(t, "Use \"monitor option erase\" to unprotect, erasing device\n");
-        return true;
     } else if (argc == 3) {
-        addr = strtol(argv[1], NULL, 0);
-        val = strtol(argv[2], NULL, 0);
-        stm32f1_option_write(t, addr, val);
+        /* If 3 arguments are given, assume the second is an address, and the third a value */
+        uint32_t addr = strtoul(argv[1], NULL, 0);
+        uint32_t val = strtoul(argv[2], NULL, 0);
+        /* Try and program the new option value to the requested option byte */
+        if (!stm32f1_option_write(t, addr, val))
+            return false;
     } else {
-        tc_printf(t, "usage: monitor option erase\n");
-        tc_printf(t, "usage: monitor option <addr> <value>\n");
+        tc_printf(t, "usage: monitor option erase\nusage: monitor option <addr> <value>\n");
     }
 
     if (0 && flash_obp_rdp_key == FLASH_OBP_RDP_KEY_F3) {
-        /* Reload option bytes on F0 and F3*/
-        val = target_mem_read32(t, FLASH_CR);
+        /* Reload option bytes on F0 and F3 */
+        uint32_t val = target_mem_read32(t, FLASH_CR);
         val |= FLASH_CR_OBL_LAUNCH;
         stm32f1_option_write(t, FLASH_CR, val);
         val &= ~FLASH_CR_OBL_LAUNCH;
         stm32f1_option_write(t, FLASH_CR, val);
     }
 
+    /* When all gets said and done, display the current option bytes values */
     for (int i = 0; i < 0xf; i += 4) {
-        addr = 0x1ffff800 + i;
-        val = target_mem_read32(t, addr);
+        uint32_t addr = FLASH_OBP_RDP + i;
+        uint32_t val = target_mem_read32(t, addr);
         tc_printf(t, "0x%08X: 0x%04X\n", addr, val & 0xFFFF);
         tc_printf(t, "0x%08X: 0x%04X\n", addr + 2, val >> 16);
     }
