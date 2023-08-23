@@ -24,13 +24,18 @@
 
 #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
 /* Default line rate, used as default for a request without baudrate */
-#define SWO_DEFAULT_BAUD (2250000)
-void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask);
+#define SWO_DEFAULT_BAUD  2250000
+bool traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask);
 #else
-void traceswo_init(uint32_t swo_chan_bitmask);
+bool traceswo_init(uint32_t swo_chan_bitmask);
 #endif
 
 void traceswo_close(void);
+
+#define SWOFLAG_ACTIVE        0x0001
+#define SWOFLAG_DECODE_ERROR  0x0002
+#define SWOFLAG_BUFFER_FULL   0x0004
+uint8_t traceswo_status(void);
 
 void trace_buf_drain(usbd_device *dev, uint8_t ep);
 void traceswo_flush(void);

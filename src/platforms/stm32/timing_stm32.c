@@ -18,6 +18,9 @@
  */
 #include "general.h"
 #include "morse.h"
+#ifdef PLATFORM_HAS_TRACESWO
+#   include "traceswo.h"
+#endif
 
 #include <libopencm3/cm3/systick.h>
 #include <libopencm3/cm3/nvic.h>
@@ -61,6 +64,10 @@ void sys_tick_handler(void)
     } else {
         morse_tick++;
     }
+
+#if defined PLATFORM_HAS_TRACESWO && (!defined TRACESWO_PROTOCOL || TRACESWO_PROTOCOL == 1)
+    traceswo_flush();
+#endif
 }
 
 uint32_t platform_time_ms(void)

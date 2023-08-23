@@ -32,10 +32,10 @@
 #define PLATFORM_HAS_USBUART
 
 #ifdef ENABLE_DEBUG
-# define PLATFORM_HAS_DEBUG
-# define USBUART_DEBUG
-extern bool debug_bmp;
-int usbuart_debug_write(const char *buf, size_t len);
+#   define PLATFORM_HAS_DEBUG
+#   define USBUART_DEBUG
+    extern bool debug_bmp;
+    int usbuart_debug_write(const char *buf, size_t len);
 #endif
 
 #define PLATFORM_IDENT          " "
@@ -164,38 +164,38 @@ int usbuart_debug_write(const char *buf, size_t len);
 #define LED_ERROR       LED_2
 
 /* OTG Flash HW Rev 5 and newer */
-#define OTG_PORT       GPIOB
-#define OTG_CS         GPIO5
-#define OTG_SCLK       GPIO13
-#define OTG_COPI       GPIO15
-#define OTG_CIPO       GPIO14
+#define OTG_PORT        GPIOB
+#define OTG_CS          GPIO5
+#define OTG_SCLK        GPIO13
+#define OTG_COPI        GPIO15
+#define OTG_CIPO        GPIO14
 
 /* AUX Port HW Rev 5 and newer */
-#define AUX_PORT       GPIOB
-#define AUX_SCLK_PORT  AUX_PORT
-#define AUX_COPI_PORT  AUX_PORT
-#define AUX_CIPO_PORT  AUX_PORT
-#define AUX_FCS_PORT   AUX_PORT
-#define AUX_SDCS_PORT  AUX_PORT
-#define AUX_DCS_PORT   AUX_PORT
-#define AUX_DDC_PORT   AUX_PORT
-#define AUX_BTN1_PORT  AUX_PORT
-#define AUX_BTN2_PORT  AUX_PORT
-#define AUX_SCLK       GPIO13
-#define AUX_COPI       GPIO15
-#define AUX_CIPO       GPIO14
-#define AUX_FCS        GPIO5
-#define AUX_SDCS       GPIO6
-#define AUX_DCS        GPIO6
-#define AUX_DCS6       GPIO7
-#define AUX_DDC        GPIO8
-#define AUX_BTN1       GPIO12
-#define AUX_BTN2       GPIO9
-#define AUX_VBAT_PORT  GPIOA    /* Note that VBat is on PA0, not PB. */
-#define AUX_VBAT       GPIO0
+#define AUX_PORT        GPIOB
+#define AUX_SCLK_PORT   AUX_PORT
+#define AUX_COPI_PORT   AUX_PORT
+#define AUX_CIPO_PORT   AUX_PORT
+#define AUX_FCS_PORT    AUX_PORT
+#define AUX_SDCS_PORT   AUX_PORT
+#define AUX_DCS_PORT    AUX_PORT
+#define AUX_DDC_PORT    AUX_PORT
+#define AUX_BTN1_PORT   AUX_PORT
+#define AUX_BTN2_PORT   AUX_PORT
+#define AUX_SCLK        GPIO13
+#define AUX_COPI        GPIO15
+#define AUX_CIPO        GPIO14
+#define AUX_FCS         GPIO5
+#define AUX_SDCS        GPIO6
+#define AUX_DCS         GPIO6
+#define AUX_DCS6        GPIO7
+#define AUX_DDC         GPIO8
+#define AUX_BTN1        GPIO12
+#define AUX_BTN2        GPIO9
+#define AUX_VBAT_PORT   GPIOA    /* Note that VBat is on PA0, not PB. */
+#define AUX_VBAT        GPIO0
 
-# define SWD_CR   GPIO_CRL(SWDIO_PORT)
-# define SWD_CR_MULT (1 << (4 << 2))
+#define SWD_CR          GPIO_CRL(SWDIO_PORT)
+#define SWD_CR_MULT     (1 << (4 << 2))
 
 #define TMS_SET_MODE() do { \
     gpio_set(TMS_DIR_PORT, TMS_DIR_PIN); \
@@ -285,31 +285,31 @@ int usbuart_debug_write(const char *buf, size_t len);
 
 /* sscanf */
 #ifdef sscanf
-#undef sscanf
-#define sscanf siscanf
+#   undef sscanf
+#   define sscanf siscanf
 #else
-#define sscanf siscanf
+#   define sscanf siscanf
 #endif
 /* sprintf */
 #ifdef sprintf
-#undef sprintf
-#define sprintf siprintf
+#   undef sprintf
+#   define sprintf siprintf
 #else
-#define sprintf siprintf
+#   define sprintf siprintf
 #endif
 /* vasprintf */
 #ifdef vasprintf
-#undef vasprintf
-#define vasprintf vasiprintf
+#   undef vasprintf
+#   define vasprintf vasiprintf
 #else
-#define vasprintf vasiprintf
+#   define vasprintf vasiprintf
 #endif
 /* snprintf */
 #ifdef snprintf
-#undef snprintf
-#define snprintf sniprintf
+#   undef snprintf
+#   define snprintf sniprintf
 #else
-#define snprintf sniprintf
+#   define snprintf sniprintf
 #endif
 
-#endif
+#endif /* __PLATFORM_H */

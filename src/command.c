@@ -26,6 +26,7 @@
 
 #include <ctype.h>
 #include "general.h"
+#include "cdcacm.h"
 #include "exception.h"
 #include "command.h"
 #include "gdb_packet.h"
@@ -101,9 +102,9 @@ const struct command_s cmd_list[] = {
 #endif
 #ifdef PLATFORM_HAS_TRACESWO
 #  if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
-    {"traceswo", cmd_traceswo, "Start trace capture, NRZ mode: [baudrate] [decode channel ...]" },
+    {"traceswo", cmd_traceswo, "Start trace capture, NRZ mode: [disable|status|baudrate [decode channel ...]]" },
 #  else
-    {"traceswo", cmd_traceswo, "Start trace capture, Manchester mode: [decode channel ...]" },
+    {"traceswo", cmd_traceswo, "Start trace capture, Manchester mode: [disable|status|decode channel ...]" },
 #  endif
 #endif
     {"heapinfo", cmd_heapinfo, "Set semihosting heapinfo: [heap_base heap_limit stack_base stack_limit]" },
@@ -631,14 +632,37 @@ static bool cmd_rtt(target *t, int argc, const char **argv)
 #ifdef PLATFORM_HAS_TRACESWO
 static bool cmd_traceswo(target *t, int argc, const char **argv)
 {
-    char serial_no[DFU_SERIAL_LENGTH];
     (void)t;
-#if TRACESWO_PROTOCOL == 2
-    uint32_t baudrate = SWO_DEFAULT_BAUD;
-#endif
-    uint32_t swo_channelmask = 0; /* swo decoding off */
+    if (argc > 1 && strncmp(argv[1], "disable", strlen(argv[1])) == 0) {
+        traceswo_close();
+        gdb_out("SWO: disabled\n");
+        return true;
+    }
+    if (argc > 1 && strncmp(argv[1], "status", strlen(argv[1])) == 0) {
+        uint8_t status = traceswo_status();
+        char msg[80] = "SWO: ";
+        strcat(msg, (status & SWOFLAG_ACTIVE) ? "enabled" : "disabled");
+        if (status & ~SWOFLAG_ACTIVE) {
+            char sep[4] = "";
+            strcat(msg, ", data loss (");
+            if (status & SWOFLAG_DECODE_ERROR) {
+                strcat(msg, "decoding errors");
+                strcpy(sep, ", ");
+            }
+            if (status & SWOFLAG_BUFFER_FULL) {
+                strcat(msg, sep);
+                strcat(msg, "buffer overrun");
+            }
+            strcat(msg, ")");
+        }
+        strcat(msg, "\n");
+        gdb_out(msg);
+        return true;
+    }
+
     uint8_t decode_arg = 1;
-#if TRACESWO_PROTOCOL == 2
+#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+    uint32_t baudrate = SWO_DEFAULT_BAUD;
     /* argument: optional baud rate for async mode */
     if (argc > 1 && argv[1][0] >= '0' && argv[1][0] <= '9') {
         baudrate = atoi(argv[1]);
@@ -648,8 +672,11 @@ static bool cmd_traceswo(target *t, int argc, const char **argv)
     }
 #endif
     /* argument: 'decode' literal */
-    if((argc > decode_arg) &&  !strncmp(argv[decode_arg], "decode", strlen(argv[decode_arg]))) {
-        swo_channelmask = 0xFFFFFFFF; /* decoding all channels */
+    uint32_t swo_channelmask = 0; /* swo decoding off */
+    bool print_channelmask = false;
+    if (argc > decode_arg && strncmp(argv[decode_arg], "decode", strlen(argv[decode_arg])) == 0) {
+        swo_channelmask = 0xffffffff; /* decoding all channels */
+        print_channelmask = true;
         /* arguments: channels to decode */
         if (argc > decode_arg + 1) {
             swo_channelmask = 0;
@@ -661,24 +688,33 @@ static bool cmd_traceswo(target *t, int argc, const char **argv)
         }
     }
 
-#if TRACESWO_PROTOCOL == 2
+#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
     gdb_outf("Baudrate: %lu ", baudrate);
+    if (!print_channelmask)
+        gdb_outf("\n");
 #endif
-    gdb_outf("Channel mask: ");
-    for (size_t i = 0; i < 32U; ++i) {
-        const uint32_t bit = (swo_channelmask >> (31U - i)) & 1U;
-        gdb_outf("%" PRIu32, bit);
+    if (print_channelmask) {
+        gdb_outf("Channel mask: ");
+        for (size_t i = 0; i < 32U; ++i) {
+            const uint32_t bit = (swo_channelmask >> (31U - i)) & 1U;
+            gdb_outf("%" PRIu32, bit);
+        }
+        gdb_outf("\n");
     }
-    gdb_outf("\n");
 
-#if TRACESWO_PROTOCOL == 2
-    traceswo_init(baudrate, swo_channelmask);
+#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
+    bool result = traceswo_init(baudrate, swo_channelmask);
 #else
-    traceswo_init(swo_channelmask);
+    bool result = traceswo_init(swo_channelmask);
 #endif
-    serial_no_read(serial_no);
-    gdb_outf("%s:%02X:%02X\n", serial_no, 5, 0x85);
-    return true;
+    if (result) {
+        char serial_no[DFU_SERIAL_LENGTH];
+        serial_no_read(serial_no);
+        gdb_outf("%s:%02X:%02X\n", serial_no, 5, USB_ENDPOINT_ADDR_IN(TRACE_IN_EP));
+    } else {
+        gdb_out("Initialization failed\n");
+    }
+    return result;
 }
 #endif
 

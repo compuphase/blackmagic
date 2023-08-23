@@ -125,7 +125,7 @@ void SWO_DMA_ISR(void)
 	trace_buf_drain(usbdev, 0x85);
 }
 
-void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
+bool traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 {
 	if (!baudrate)
 		baudrate = SWO_DEFAULT_BAUD;
@@ -135,11 +135,18 @@ void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 
 	gpio_set_mode(SWO_UART_PORT, GPIO_MODE_INPUT,
 				  GPIO_CNF_INPUT_PULL_UPDOWN, SWO_UART_RX_PIN);
-	/* Pull SWO pin high to keep open SWO line ind uart idle state!*/
+	/* Pull SWO pin high to keep open SWO line in uart idle state! */
 	gpio_set(SWO_UART_PORT, SWO_UART_RX_PIN);
 	nvic_set_priority(SWO_DMA_IRQ, IRQ_PRI_SWO_DMA);
 	nvic_enable_irq(SWO_DMA_IRQ);
 	traceswo_setspeed(baudrate);
 	traceswo_setmask(swo_chan_bitmask);
 	decoding = (swo_chan_bitmask != 0);
+	return true;
 }
+
+void traceswo_close(void)
+{
+    nvic_diable_irq(SWO_DMA_IRQ);
+}
+
