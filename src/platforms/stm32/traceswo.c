@@ -31,37 +31,22 @@
  *
  * The decoder is a state machine that acts on the transitions of the TRACESWO
  * pin. On the Black Magic Probe, this pin is connected to GPIO pin 6 of port A
- * (on occasion, this is abbreviated as PA6). An external interrupt is set on
- * this pin and port, for both rising and falling edges. Precision time-stamps
- * are also needed, and the decoder uses the cycle counter (DWT unit) for that.
+ * ("PA6"). An external interrupt is set on this pin, for both rising and
+ * falling edges. Precision time-stamps are also needed, for which we use the
+ * cycle counter (CYCCNT, DWT unit).
  *
- * Capturing the transitions (edges) of the TRACESWO pin is sufficient to
- * decode the data stream. The ISR for PA6 does that, and stores the decoded
- * bytes in a ring buffer. That buffer subsequently needs to be transmitted to
- * the host over USB. That is the task of a different pair of routines. The
- * first is traceswo_flush(), which starts a transfer when there is something
- * in the queue. On completion of the transfer, the USB stack invokes a
+ * The ISR for PA6 stores the decoded bytes in a ring buffer. That buffer is
+ * subsequently transmitted to the host over USB. Transfer is started by
+ * traceswo_flush(). On completion of the transfer, the USB stack invokes a
  * callback, trace_buf_drain(), which continues the transfer if there is more
  * data in the ring buffer.
  *
  * traceswo_flush() must be called on a regular basis (otherwise, transfers will
- * never start). This brings about a few caveats:
- * 1) In the current implementation, traceswo_flush() is called from the
- *    "systick" ISR. In firmware releases up to 1.9.1, the systick interrupt
- *    runs at 100 Hz, which is rather slow. Therefore, I changed this to 1 kHz.
- *    There is already a merged PR in the "mainline" (development line) of the
- *    original project that increases the sysreq clock to 1 kHz too, so on
- *    releases after 1.9.1, this should be moot.
- * 2) While traceswo_flush() starts a transfer, trace_buf_drain() then takes
- *    over, until the buffer is empty. Hence, traceswo_flush() should detect
- *    that trace_buf_drain() is already running, and do nothing in that case.
- *
- * A ring buffer has the benefit that, if there is only one producer (that
- * writes data into the buffer) and one consumer (that reads & removes data),
- * it is a non-locking data structure. That means that no critical sections or
- * semaphores are needed to protect against race conditions. Technically, we have
- * *two* consumers in this implementation: traceswo_flush() and trace_buf_drain().
- * Therefore, this routine is protected against nested execution.
+ * never start). It is currently called from the "systick" ISR. In firmware
+ * releases up to 1.9.1, the systick interrupt runs at 100 Hz, which is rather
+ * slow. Therefore, I changed this to 1 kHz. There is already a merged PR in
+ * the "mainline" (development line) of the original project that increases the
+ * sysreq clock to 1 kHz too.
  *
  * Further development may focus on the error margin. In this implementation,
  * I chose a tolerance of 1/4th of the "half-bit" period, and this 12.5% of the
@@ -96,13 +81,19 @@ static bool decoding = false;   /* SWO decoding enabled y/n */
 #define TRACEPACKET_SIZE  64    /* see cdcacm.c */
 #define RINGBUFFER_SIZE   128   /* must be a power of 2 */
 static uint8_t trace_buffer[RINGBUFFER_SIZE];
-static volatile unsigned trace_buf_read = 0;
-static volatile unsigned trace_buf_write = 0;
-static volatile bool trace_zlp = false;
-static volatile uint8_t traceswo_status_flags = 0;
+static unsigned trace_buf_read = 0;
+static unsigned trace_buf_write = 0;
+static bool trace_zlp = false;
+static uint8_t traceswo_status_flags = 0;
 
 static bool trace_buf_push(void)
 {
+    /* If there is only one producer (that writes data into the buffer) and one
+       consumer (that reads & removes data), a ring buffer is a non-locking
+       data structure. That means that no critical sections or semaphores are
+       needed to protect against race conditions. This routine is called by
+       traceswo_flush() and trace_buf_drain(), so technically, we have *two*
+       consumers. Therefore, this routine is protected against nested execution. */
     static bool busy = false;
     if (__atomic_test_and_set(&busy, __ATOMIC_RELAXED))
         return false;
@@ -257,7 +248,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
                    "halfway" transition of the bit, which we need to act on.
                  - An "up" transition arriving after 1.5*bitperiod - margin
                    means that a space has passed, and that this is the first
-                   flank of the new start bit
+                   flank of the new start bit.
                  - Everything else is an error. */
             uint32_t margin = halfperiod >> 2;  /* halfperiod divided by 4 */
             bitstart_low = halfperiod - margin; /* criterion for flank at start of a bit, low mark */
@@ -273,21 +264,17 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
         break;
 
     case DECODING:
-        if (level != 0 && deltatime >= space_criterion) {
-            sync_mark = timestamp;
-            state = STARTBIT; /* restart when idle for at least 1.5 bit cycle */
-        } else if (deltatime >= bitmid_low && deltatime <= bitmid_high) {
+        if (deltatime >= bitmid_low && deltatime <= bitmid_high) {
             if (level == 0)
                 byte |= bitmask;    /* set bit when there's a falling edge halfway  */
             if ((bitmask <<= 1) == 0) {
                 /* Done 8 bits -> store byte in the ring buffer. */
-                unsigned wr = trace_buf_write;
-                unsigned next_wr = (wr + 1) & (RINGBUFFER_SIZE - 1);
+                unsigned next_wr = (trace_buf_write + 1) & (RINGBUFFER_SIZE - 1);
                 if (next_wr == trace_buf_read) {
                     /* queue is full */
                     traceswo_status_flags |= SWOFLAG_BUFFER_FULL;
                 } else {
-                    trace_buffer[wr] = byte;
+                    trace_buffer[trace_buf_write] = byte;
                     trace_buf_write = next_wr;
                 }
                 /* reset, prepare to decode next byte */
@@ -301,7 +288,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
                  - sync_mark = sync_mark + bitperiod (the theoretical time)
                  - sync_mark = sync_mark + deltatime (which amounts to using
                    the current timestamp as the synchronization point)
-               The middle ground is to take the time halfway these two. */
+               The middle ground is to take the average of these two. */
             sync_mark += halfperiod + (deltatime >> 1);
         } else if (deltatime >= bitstart_low && deltatime <= bitstart_high) {
             /* As said, there is always a transition halfway a bit period, but
@@ -309,6 +296,9 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
                easier to synchronize on the halfperiod transitions. So we just
                completely ignore any potential transition at the start of a bit
                (if there is any) */
+        } else if (deltatime >= space_criterion && level != 0) {
+            sync_mark = timestamp;
+            state = STARTBIT; /* restart when idle for at least 1.5 bit cycle */
         } else {
             sync_mark = timestamp;
             state = ERROR;
@@ -383,10 +373,6 @@ void traceswo_close(void)
     nvic_disable_irq(NVIC_EXTI9_5_IRQ);
     /* We leave the cycle counter (CYCCNT) enabled, because it may also be used
        for profiling or other functions. */
-
-    trace_buf_read = 0;
-    trace_buf_write = 0;
-    trace_zlp = false;
 }
 
 uint8_t traceswo_status(void)
