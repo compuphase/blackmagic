@@ -49,7 +49,7 @@ size_t gdb_getpacket(char *packet, size_t size)
                 } else {
                     packet[0] = (char)reply;
                     if (reply == 0x04)
-                        return 1; /* special case "detached" */
+                        return 1; /* special case "detached" (returned when DTR not set) */
                     else if (reply == '$' || reply == REMOTE_SOM)
                         break;
                 }

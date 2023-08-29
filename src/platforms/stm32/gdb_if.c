@@ -111,7 +111,7 @@ unsigned char gdb_if_getchar(void)
 	return buffer_out[out_ptr++];
 }
 
-/** gdb_if_getchar_to() waits for input, but with timeout.
+/** gdb_if_getchar_to() waits for input, but with timeout in milliseconds.
  *  \return The character read (0..255) on success, or -1 on timeout.
  */
 int gdb_if_getchar_to(int timeout)
