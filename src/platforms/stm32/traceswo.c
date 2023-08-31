@@ -169,6 +169,13 @@ static inline uint32_t read_cycle_counter(void)
     return DWT_CYCCNT;
 }
 
+static inline void __exti_reset_request(uint32_t extis)
+{
+    /* overrule the default implementation in libopencm3 with an inline function,
+       to maximize performance */
+    EXTI_PR = extis;
+}
+
 
 /* Manchester decoding allows clock recovery, but that hinges on the decoding
    of the start bit. If the TRACESWO pin toggles during initialization, those
@@ -192,6 +199,9 @@ enum {
 
 void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
 {
+    #define RISING_EDGE()   (GPIOA_IDR & GPIO6)
+    #define FALLING_EDGE()  (!RISING_EDGE())
+
     /* Apart from the state, a number of other variables have to be maintained,
        such as the detected clock rate and the criterions derived from that
        clock rate. */
@@ -205,7 +215,6 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
 
     uint32_t timestamp = read_cycle_counter();  /* the timestamp */
     uint32_t deltatime = timestamp - sync_mark; /* unsigned arithmetic is required, to handle wrap-around */
-    uint32_t level = GPIOA_IDR & GPIO6;         /* zero for a falling edge, non-zero for a rising edge */
 
     switch (state) {
     case IDLE:
@@ -213,7 +222,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
            transitions. The "up" transition is the start flank of the start-bit.
            The time is marked only to measure the length of the pulse of the
            start bit. */
-        if (level != 0) {
+        if (RISING_EDGE()) {
             sync_mark = timestamp;
             state = STARTBIT;
         }
@@ -223,7 +232,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
         /* The start bit is a "1" bit. Therefore, it has a "down" transition
            halfway its bit period. We measure this period, and then calculate
            the criterions for data bits & space (return to idle) conditions. */
-        if (level == 0) {
+        if (FALLING_EDGE()) {
             /* We are coming from IDLE, so the measured delta-time between the
                "up" flank of at the IDLE state and the "down" flank of this
                stage, is half the bit period. */
@@ -265,7 +274,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
 
     case DECODING:
         if (deltatime >= bitmid_low && deltatime <= bitmid_high) {
-            if (level == 0)
+            if (FALLING_EDGE())
                 byte |= bitmask;    /* set bit when there's a falling edge halfway  */
             if ((bitmask <<= 1) == 0) {
                 /* Done 8 bits -> store byte in the ring buffer. */
@@ -296,7 +305,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
                easier to synchronize on the halfperiod transitions. So we just
                completely ignore any potential transition at the start of a bit
                (if there is any) */
-        } else if (deltatime >= space_criterion && level != 0) {
+        } else if (deltatime >= space_criterion && RISING_EDGE()) {
             sync_mark = timestamp;
             state = STARTBIT; /* restart when idle for at least 1.5 bit cycle */
         } else {
@@ -307,7 +316,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
         break;
 
     case ERROR:
-        if (level != 0 && deltatime >= space_criterion)
+        if (RISING_EDGE() && deltatime >= space_criterion)
             state = STARTBIT; /* restart when idle for at least 1.5 bit period */
         /* The synchronization mark is only used here to detect idle time for at
            least 1.5 bit period (in order to restart). Note that a "space" may
@@ -333,7 +342,7 @@ void exti9_5_isr(void)  /*EXTI9_5_IRQHandler*/
         break;
     }
 
-    exti_reset_request(EXTI6);
+    __exti_reset_request(EXTI6);
 }
 
 bool traceswo_init(uint32_t swo_chan_bitmask)
